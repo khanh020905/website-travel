@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, Filter } from 'lucide-react'
+import { Search } from 'lucide-react'
 import gsap from 'gsap'
 import PageTransition from '../components/PageTransition'
 
