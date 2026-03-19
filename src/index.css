@@ -1,0 +1,198 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #F97316;
+  --color-primary-dark: #EA580C;
+  --color-primary-light: #FB923C;
+  --color-primary-50: #FFF7ED;
+  --color-primary-100: #FFEDD5;
+  --color-secondary: #1E293B;
+  --color-accent: #0EA5E9;
+  --color-surface: #FFFFFF;
+  --color-surface-dim: #F8FAFC;
+  --color-surface-card: rgba(255, 255, 255, 0.85);
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #64748B;
+  --color-text-muted: #94A3B8;
+  --color-border: #E2E8F0;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+
+  --color-desktop-bg: #F0F4F8;
+  --color-desktop-sidebar: #FFFFFF;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Playfair Display', serif;
+
+  --breakpoint-xs: 480px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+}
+
+/* Base styles */
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: #F1F5F9;
+  color: var(--color-text-primary);
+  overflow-x: hidden;
+}
+
+/* Mobile: phone shell. Desktop: full dashboard */
+#root {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  position: relative;
+  background: var(--color-surface);
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.08);
+}
+
+@media (min-width: 768px) {
+  #root {
+    max-width: 100%;
+    box-shadow: none;
+    background: var(--color-desktop-bg);
+  }
+  body {
+    background: var(--color-desktop-bg);
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 0;
+  display: none;
+}
+
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 5px;
+    display: block;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+  }
+}
+
+* {
+  scrollbar-width: none;
+}
+
+@media (min-width: 768px) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #CBD5E1 transparent;
+  }
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #F97316, #EA580C, #F59E0B);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
+  50% { box-shadow: 0 0 20px 8px rgba(249, 115, 22, 0.15); }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Image card hover */
+.image-card {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.image-card:active {
+  transform: scale(0.95);
+}
+
+@media (min-width: 768px) {
+  .image-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+  }
+}
+
+/* Bottom nav safe area - mobile only */
+.safe-bottom {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+}
+
+@media (min-width: 768px) {
+  .safe-bottom {
+    padding-bottom: 24px;
+  }
+}
+
+/* Input focus */
+input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+}
+
+/* Page transition container */
+.page-container {
+  min-height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+@media (min-width: 768px) {
+  .page-container {
+    background: transparent;
+  }
+}
+
+/* Desktop card */
+@media (min-width: 768px) {
+  .desktop-card {
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid var(--color-border);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+}
+
+/* Dest card hover on desktop */
+@media (min-width: 1024px) {
+  .dest-card:hover img {
+    transform: scale(1.08);
+  }
+}
