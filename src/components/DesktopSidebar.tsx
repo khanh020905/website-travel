@@ -118,7 +118,9 @@ export default function DesktopSidebar() {
           <p className="text-[10px] font-semibold text-text-muted uppercase tracking-widest px-3 mb-2">Khác</p>
           <nav className="space-y-0.5">
             {secondaryMenu.map((item) => {
-              const active = location.pathname === item.path
+              const active = item.path === '/admin' 
+                ? location.pathname.startsWith('/admin')
+                : location.pathname === item.path
               const Icon = item.icon
               return (
                 <motion.button key={item.label} whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }} onClick={() => navigate(item.path)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 cursor-pointer relative ${active ? 'text-primary font-semibold bg-primary-50' : 'text-text-secondary hover:text-text-primary hover:bg-surface-dim'}`}>

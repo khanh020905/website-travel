@@ -27,7 +27,9 @@ export default function BottomNav() {
       <div className="bg-gradient-to-r from-primary via-primary-light to-primary rounded-t-3xl px-2 pt-2 pb-[max(env(safe-area-inset-bottom),8px)] shadow-[0_-4px_30px_rgba(249,115,22,0.3)]">
         <div className="flex items-end justify-around">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path
+            const isActive = item.path === '/home' 
+              ? location.pathname === '/home' || location.pathname === '/'
+              : location.pathname.startsWith(item.path)
             const Icon = item.icon
 
             if (item.isCenter) {
