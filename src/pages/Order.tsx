@@ -24,8 +24,8 @@ export default function Order() {
   // Each click costs $0.60
   const costPerClick = COST_PER_CLICK
   const totalSpent = orderCount * costPerClick
-  const progressPct = Math.min(100, (totalSpent / maxPrice) * 100)
-  const remaining = Math.max(0, maxPrice - totalSpent)
+  const maxBookings = 60
+  const progressPct = Math.min(100, (orderCount / maxBookings) * 100)
 
   // Fetch max price + user balance
   useEffect(() => {
@@ -57,7 +57,7 @@ export default function Order() {
   }, [progressPct])
 
   const handleClickOrder = () => {
-    if (totalSpent + costPerClick > maxPrice + 0.001) {
+    if (orderCount + 1 > maxBookings) {
       setExceeded(true)
       setTimeout(() => setExceeded(false), 3000)
       return
@@ -134,12 +134,12 @@ export default function Order() {
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.45 }} className="text-center mt-8 mb-2">
             <p className="text-xs text-text-muted mb-1">Đã tích lũy</p>
             <div className="inline-flex items-baseline gap-1">
-              <span className="text-xl font-bold text-text-muted">$</span>
-              <span ref={counterRef} className="text-5xl font-black tracking-tight">{totalSpent.toFixed(2)}</span>
+              <span ref={counterRef} className="text-5xl font-black tracking-tight">{orderCount}</span>
+              <span className="text-xl font-bold text-text-muted">/{maxBookings}</span>
             </div>
-            <p className="text-xs text-text-muted mt-1">Còn lại: <span className="font-bold text-primary">${remaining.toFixed(2)}</span> / ${maxPrice.toFixed(2)}</p>
+            <p className="text-xs text-text-muted mt-1">Còn lại: <span className="font-bold text-primary">{maxBookings - orderCount}</span> lần</p>
             <div className="mx-auto mt-3 w-48 h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div ref={progressRef} className={`h-full rounded-full ${totalSpent >= maxPrice ? 'bg-gradient-to-r from-red-400 to-red-500' : 'bg-gradient-to-r from-primary to-primary-light'}`} style={{ width: `${progressPct}%` }} />
+              <div ref={progressRef} className={`h-full rounded-full ${orderCount >= maxBookings ? 'bg-gradient-to-r from-red-400 to-red-500' : 'bg-gradient-to-r from-primary to-primary-light'}`} style={{ width: `${progressPct}%` }} />
             </div>
           </motion.div>
 
@@ -172,12 +172,12 @@ export default function Order() {
             </AnimatePresence>
             <AnimatePresence>
               {orderCount > 0 && !exceeded && !showConfirm && (
-                <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center text-sm text-text-secondary mt-3">🎉 Đã đặt {orderCount} tour! Tổng: ${totalSpent.toFixed(2)} / ${maxPrice.toFixed(2)}</motion.p>
+                <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center text-sm text-text-secondary mt-3">🎉 Đã đặt {orderCount}/{maxBookings} tour!</motion.p>
               )}
               {exceeded && (
                 <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
                   <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                  <p className="text-red-600 text-sm font-semibold">Đã đạt tối đa ${maxPrice.toFixed(2)}!</p>
+                  <p className="text-red-600 text-sm font-semibold">Đã đạt tối đa {maxBookings} lần!</p>
                 </motion.div>
               )}
               {insufficientBalance && (
@@ -281,14 +281,14 @@ export default function Order() {
             <div className="bg-white rounded-2xl p-6 border border-border/50 shadow-sm text-center">
               <h3 className="font-bold text-base mb-4">Đặt chỗ</h3>
               <div className="inline-flex items-baseline gap-1 mb-1">
-                <span className="text-xl font-bold text-text-muted">$</span>
-                <span ref={counterRef} className="text-5xl font-black tracking-tight">{totalSpent.toFixed(2)}</span>
+                <span ref={counterRef} className="text-5xl font-black tracking-tight">{orderCount}</span>
+                <span className="text-xl font-bold text-text-muted">/{maxBookings}</span>
               </div>
-              <p className="text-xs text-text-muted mb-3">Tối đa: <span className="font-bold text-red-500">${maxPrice.toFixed(2)}</span></p>
+              <p className="text-xs text-text-muted mb-3">Tối đa: <span className="font-bold text-red-500">{maxBookings} lần</span></p>
               <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden mb-2">
-                <div ref={progressRef} className={`h-full rounded-full transition-all ${totalSpent >= maxPrice ? 'bg-gradient-to-r from-red-400 to-red-500' : 'bg-gradient-to-r from-primary to-primary-light'}`} style={{ width: `${progressPct}%` }} />
+                <div ref={progressRef} className={`h-full rounded-full transition-all ${orderCount >= maxBookings ? 'bg-gradient-to-r from-red-400 to-red-500' : 'bg-gradient-to-r from-primary to-primary-light'}`} style={{ width: `${progressPct}%` }} />
               </div>
-              <p className="text-[10px] text-text-muted mb-4">Đặt {orderCount} lần • +${costPerClick.toFixed(2)}/lần • Còn ${remaining.toFixed(2)}</p>
+              <p className="text-[10px] text-text-muted mb-4">Đặt {orderCount} lần • +${costPerClick.toFixed(2)}/lần • Còn {maxBookings - orderCount} lần</p>
               <AnimatePresence mode="wait">
                 {!showConfirm ? (
                   <motion.button key="order" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={handleClickOrder} className="w-full py-3.5 bg-gradient-to-r from-primary-dark via-primary to-primary-light text-white font-bold text-base rounded-xl shadow-lg shadow-primary/30 cursor-pointer">
@@ -316,12 +316,12 @@ export default function Order() {
               </AnimatePresence>
               <AnimatePresence>
                 {orderCount > 0 && !exceeded && !showConfirm && (
-                  <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-sm text-text-secondary mt-3">🎉 Đã đặt {orderCount} tour!</motion.p>
+                  <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-sm text-text-secondary mt-3">🎉 Đã đặt {orderCount}/{maxBookings} tour!</motion.p>
                 )}
                 {exceeded && (
                   <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
                     <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                    <p className="text-red-600 text-sm font-semibold">Đã đạt tối đa ${maxPrice.toFixed(2)}!</p>
+                    <p className="text-red-600 text-sm font-semibold">Đã đạt tối đa {maxBookings} lần!</p>
                   </motion.div>
                 )}
                 {insufficientBalance && (

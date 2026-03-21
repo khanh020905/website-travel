@@ -14,7 +14,7 @@ interface Message {
   created_at: string
 }
 
-export default function ChatWidget({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function ChatWidget({ open, onClose, initialMessage }: { open: boolean; onClose: () => void; initialMessage?: string }) {
   const { user } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -24,6 +24,7 @@ export default function ChatWidget({ open, onClose }: { open: boolean; onClose: 
   const [uploading, setUploading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const initialSent = useRef(false)
 
   // Get or create conversation
   useEffect(() => {
@@ -112,6 +113,14 @@ export default function ChatWidget({ open, onClose }: { open: boolean; onClose: 
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages])
+
+  // Auto-send initial message
+  useEffect(() => {
+    if (initialMessage && convId && !loading && !initialSent.current && user) {
+      initialSent.current = true
+      sendMessage(initialMessage)
+    }
+  }, [initialMessage, convId, loading, user])
 
   const sendMessage = async (content: string, imageUrl?: string) => {
     if ((!content.trim() && !imageUrl) || !convId || !user) return

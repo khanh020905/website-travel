@@ -1,14 +1,26 @@
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Wallet, History, Settings, MapPin, Lock, Globe, LogOut, ChevronRight, CreditCard, Shield, Search, Edit3, LayoutDashboard } from 'lucide-react'
+import { Wallet, History, Settings, MapPin, Lock, Globe, LogOut, ChevronRight, Shield, Search, Edit3, LayoutDashboard, ArrowDownLeft, DollarSign, RefreshCw, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import UserAvatar, { useUserInfo, useUserRole } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
+import ChatWidget from '../components/ChatWidget'
+import { supabase } from '../lib/supabase'
+
+interface Transaction {
+  id: string
+  user_id: string
+  amount: number
+  type: string
+  description: string
+  balance_after: number
+  created_at: string
+}
 
 const menuItems = [
-  { icon: Wallet, label: 'Rút tiền', desc: 'Chuyển tiền về tài khoản', color: 'text-green-500', bgColor: 'bg-green-50' },
-  { icon: History, label: 'Lịch sử giao dịch', desc: 'Xem các giao dịch gần đây', color: 'text-blue-500', bgColor: 'bg-blue-50' },
-  { icon: CreditCard, label: 'Số tài khoản', desc: 'Thông tin tài khoản ngân hàng', color: 'text-purple-500', bgColor: 'bg-purple-50' },
+  { icon: Wallet, label: 'Rút tiền', desc: 'Chuyển tiền về tài khoản', color: 'text-green-500', bgColor: 'bg-green-50', action: 'withdraw' },
+  { icon: History, label: 'Lịch sử giao dịch', desc: 'Xem các giao dịch gần đây', color: 'text-blue-500', bgColor: 'bg-blue-50', action: 'history' },
 ]
 
 const settingsItems = [
@@ -23,9 +35,56 @@ const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, tr
 
 export default function Profile() {
   const navigate = useNavigate()
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
   const { displayName, email } = useUserInfo()
   const { isAdmin } = useUserRole()
+  const [balance, setBalance] = useState(0)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [txLoading, setTxLoading] = useState(false)
+  const WITHDRAW_MSG = 'Tôi đang muốn rút tiền bạn có thể hỗ trợ tôi được không'
+
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.balance != null) setBalance(parseFloat(data.balance))
+        })
+    }
+  }, [user])
+
+  const fetchTransactions = async () => {
+    if (!user) return
+    setTxLoading(true)
+    const { data } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (data) setTransactions(data)
+    setTxLoading(false)
+  }
+
+  const handleWithdraw = () => {
+    setChatOpen(true)
+  }
+
+  const handleMenuClick = (action: string) => {
+    if (action === 'withdraw') handleWithdraw()
+    if (action === 'history') {
+      setShowHistory(!showHistory)
+      if (!showHistory && transactions.length === 0) fetchTransactions()
+    }
+  }
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
   const handleLogout = async () => {
     await signOut()
@@ -61,8 +120,8 @@ export default function Profile() {
         <div className="px-5 -mt-8 relative z-10">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-white rounded-2xl shadow-lg shadow-black/5 p-5 border border-border/50">
             <div className="flex items-center justify-between">
-              <div><p className="text-text-muted text-xs font-medium">Số dư khả dụng</p><p className="text-2xl font-black mt-0.5">0.000đ</p></div>
-              <motion.button whileTap={{ scale: 0.95 }} className="px-5 py-2.5 bg-gradient-to-r from-primary to-primary-light text-white text-sm font-bold rounded-xl shadow-md shadow-primary/20 cursor-pointer">Rút tiền</motion.button>
+              <div><p className="text-text-muted text-xs font-medium">Số dư khả dụng</p><p className="text-2xl font-black mt-0.5">${balance.toFixed(2)}</p></div>
+              <motion.button whileTap={{ scale: 0.95 }} onClick={handleWithdraw} className="px-5 py-2.5 bg-gradient-to-r from-primary to-primary-light text-white text-sm font-bold rounded-xl shadow-md shadow-primary/20 cursor-pointer">Rút tiền</motion.button>
             </div>
           </motion.div>
         </div>
@@ -72,14 +131,64 @@ export default function Profile() {
             {menuItems.map((item) => {
               const Icon = item.icon
               return (
-                <motion.button key={item.label} variants={fadeUp} whileTap={{ scale: 0.97 }} className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm border border-border/50 active:bg-gray-50 cursor-pointer">
+                <motion.button key={item.label} variants={fadeUp} whileTap={{ scale: 0.97 }} onClick={() => handleMenuClick(item.action)} className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm border border-border/50 active:bg-gray-50 cursor-pointer">
                   <div className={`w-10 h-10 rounded-xl ${item.bgColor} flex items-center justify-center`}><Icon className={`w-5 h-5 ${item.color}`} /></div>
                   <div className="flex-1 text-left"><p className="font-semibold text-sm">{item.label}</p><p className="text-text-muted text-xs">{item.desc}</p></div>
-                  <ChevronRight className="w-4 h-4 text-text-muted" />
+                  <ChevronRight className={`w-4 h-4 text-text-muted transition-transform ${item.action === 'history' && showHistory ? 'rotate-90' : ''}`} />
                 </motion.button>
               )
             })}
           </motion.div>
+
+          {showHistory && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-6">
+              <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between p-4 pb-3 border-b border-border/50">
+                  <h3 className="font-bold text-sm flex items-center gap-2">
+                    <History className="w-4 h-4 text-blue-500" /> Lịch sử giao dịch
+                    {transactions.length > 0 && <span className="text-[10px] font-semibold bg-blue-500 text-white px-1.5 py-0.5 rounded-full">{transactions.length}</span>}
+                  </h3>
+                  <button onClick={fetchTransactions} className="flex items-center gap-1 text-primary text-[10px] font-semibold cursor-pointer hover:underline">
+                    <RefreshCw className="w-3 h-3" /> Làm mới
+                  </button>
+                </div>
+                <div className="max-h-[300px] overflow-y-auto">
+                  {txLoading ? (
+                    <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 text-primary animate-spin" /></div>
+                  ) : transactions.length === 0 ? (
+                    <div className="text-center py-8"><History className="w-8 h-8 text-gray-300 mx-auto mb-2" /><p className="text-text-muted text-xs">Chưa có giao dịch nào</p></div>
+                  ) : (
+                    <div className="divide-y divide-border/30">
+                      {transactions.map((tx) => (
+                        <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {tx.type === 'booking' ? '🏖️' : '💸'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-semibold text-xs truncate">{tx.description}</p>
+                              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
+                                <ArrowDownLeft className="w-2 h-2 inline mr-0.5" />{tx.type === 'booking' ? 'Đặt tour' : tx.type}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-text-muted">{formatDate(tx.created_at)}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className={`text-xs font-black ${tx.amount < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                              {tx.amount < 0 ? '' : '+'}${Math.abs(tx.amount).toFixed(2)}
+                            </p>
+                            <p className="text-[9px] text-text-muted flex items-center gap-0.5 justify-end">
+                              <DollarSign className="w-2 h-2" />{(tx.balance_after ?? 0).toFixed(2)} còn lại
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Cài đặt</h3>
           <div className="bg-white rounded-2xl shadow-sm border border-border/50 overflow-hidden divide-y divide-border/50 mb-6">
@@ -164,17 +273,17 @@ export default function Profile() {
             {/* Balance */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-gradient-to-r from-primary to-primary-dark rounded-2xl p-6 text-white shadow-md">
               <div className="flex items-center justify-between">
-                <div><p className="text-white/70 text-sm font-medium">Số dư khả dụng</p><p className="text-3xl font-black mt-1">0.000đ</p></div>
-                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="px-6 py-3 bg-white text-primary font-bold text-sm rounded-xl shadow-md cursor-pointer">Rút tiền</motion.button>
+                <div><p className="text-white/70 text-sm font-medium">Số dư khả dụng</p><p className="text-3xl font-black mt-1">${balance.toFixed(2)}</p></div>
+                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleWithdraw} className="px-6 py-3 bg-white text-primary font-bold text-sm rounded-xl shadow-md cursor-pointer">Rút tiền</motion.button>
               </div>
             </motion.div>
 
             {/* Quick actions */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               {menuItems.map((item, i) => {
                 const Icon = item.icon
                 return (
-                  <motion.button key={item.label} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + i * 0.06 }} whileHover={{ y: -4 }} className="bg-white rounded-2xl p-5 border border-border/50 shadow-sm text-center hover:shadow-md transition-all cursor-pointer group">
+                  <motion.button key={item.label} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + i * 0.06 }} whileHover={{ y: -4 }} onClick={() => handleMenuClick(item.action)} className="bg-white rounded-2xl p-5 border border-border/50 shadow-sm text-center hover:shadow-md transition-all cursor-pointer group">
                     <div className={`w-12 h-12 rounded-xl ${item.bgColor} flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform`}><Icon className={`w-6 h-6 ${item.color}`} /></div>
                     <p className="font-semibold text-sm">{item.label}</p>
                     <p className="text-text-muted text-xs mt-0.5">{item.desc}</p>
@@ -182,6 +291,60 @@ export default function Profile() {
                 )
               })}
             </div>
+
+            {/* Transaction history */}
+            {showHistory && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+                <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+                  <div className="flex items-center justify-between p-5 pb-4 border-b border-border/50">
+                    <h3 className="font-bold text-base flex items-center gap-2">
+                      <History className="w-5 h-5 text-blue-500" /> Lịch sử giao dịch
+                      {transactions.length > 0 && <span className="ml-1 text-xs font-semibold bg-blue-500 text-white px-2 py-0.5 rounded-full">{transactions.length}</span>}
+                    </h3>
+                    <button onClick={fetchTransactions} className="flex items-center gap-1.5 text-primary text-xs font-semibold cursor-pointer hover:underline">
+                      <RefreshCw className="w-3.5 h-3.5" /> Làm mới
+                    </button>
+                  </div>
+                  <div className="max-h-[350px] overflow-y-auto">
+                    {txLoading ? (
+                      <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 text-primary animate-spin" /></div>
+                    ) : transactions.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 text-center px-4">
+                        <History className="w-10 h-10 text-gray-300 mb-2" />
+                        <p className="text-text-muted text-sm">Chưa có giao dịch nào</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border/30">
+                        {transactions.map((tx) => (
+                          <motion.div key={tx.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                              {tx.type === 'booking' ? '🏖️' : '💸'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-sm truncate">{tx.description}</p>
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
+                                  <ArrowDownLeft className="w-2.5 h-2.5 inline mr-0.5" />{tx.type === 'booking' ? 'Đặt tour' : tx.type}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-text-muted truncate">{tx.description} • {formatDate(tx.created_at)}</p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className={`text-sm font-black ${tx.amount < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                {tx.amount < 0 ? '' : '+'}${Math.abs(tx.amount).toFixed(2)}
+                              </p>
+                              <p className="text-[10px] text-text-muted flex items-center gap-0.5 justify-end">
+                                <DollarSign className="w-2.5 h-2.5" />{(tx.balance_after ?? 0).toFixed(2)} còn lại
+                              </p>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </div>
 
           {/* Right */}
@@ -224,6 +387,7 @@ export default function Profile() {
           </div>
         </div>
       </div>
+      <ChatWidget open={chatOpen} onClose={() => setChatOpen(false)} initialMessage={WITHDRAW_MSG} />
     </PageTransition>
   )
 }
