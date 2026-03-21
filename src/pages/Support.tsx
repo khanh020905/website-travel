@@ -1,19 +1,20 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { MessageCircle, Phone, Mail, Clock, ChevronRight, Headphones, Search } from 'lucide-react'
+import { MessageCircle, Mail, Clock, ChevronRight, Headphones, Search } from 'lucide-react'
 import UserAvatar, { useUserInfo } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
+import ChatWidget from '../components/ChatWidget'
 
 const faqItems = [
   { q: 'Làm sao để đặt tour?', a: 'Duyệt qua các điểm đến và nhấn nút ĐẶT TOUR để bắt đầu đặt chuyến đi.' },
   { q: 'Phương thức thanh toán?', a: 'Chúng tôi chấp nhận VISA, Mastercard, Momo, ZaloPay và chuyển khoản ngân hàng.' },
   { q: 'Chính sách hoàn tiền?', a: 'Miễn phí hủy trong vòng 24 giờ sau khi đặt. Sau đó sẽ áp dụng phí nhỏ.' },
-  { q: 'Liên hệ hỗ trợ?', a: 'Chat trực tiếp 24/7, gọi hotline hoặc gửi email cho chúng tôi.' },
+  { q: 'Liên hệ hỗ trợ?', a: 'Chat trực tiếp 24/7 hoặc gửi email cho chúng tôi.' },
 ]
 
 const contactMethods = [
-  { icon: MessageCircle, label: 'Chat trực tiếp', desc: 'Chat ngay', color: 'bg-blue-500' },
-  { icon: Phone, label: 'Gọi điện', desc: '1800-XXX-XXX', color: 'bg-green-500' },
-  { icon: Mail, label: 'Email', desc: 'hotro@abaytripvior.vn', color: 'bg-purple-500' },
+  { icon: MessageCircle, label: 'Chat trực tiếp', desc: 'Chat ngay', color: 'bg-blue-500', action: 'chat' },
+  { icon: Mail, label: 'Email', desc: 'hotro@abaytripvior.vn', color: 'bg-purple-500', action: 'email' },
 ]
 
 const stagger = { animate: { transition: { staggerChildren: 0.08 } } }
@@ -21,6 +22,15 @@ const fadeUp = { initial: { opacity: 0, y: 15 }, animate: { opacity: 1, y: 0, tr
 
 export default function Support() {
   const { displayName, email } = useUserInfo()
+  const [chatOpen, setChatOpen] = useState(false)
+
+  const handleContact = (action: string) => {
+    if (action === 'chat') {
+      setChatOpen(true)
+    } else if (action === 'email') {
+      window.location.href = 'mailto:hotro@abaytripvior.vn'
+    }
+  }
 
   return (
     <PageTransition>
@@ -46,7 +56,7 @@ export default function Support() {
             {contactMethods.map((method) => {
               const Icon = method.icon
               return (
-                <motion.button key={method.label} variants={fadeUp} whileTap={{ scale: 0.97 }} className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm border border-border/50 active:bg-gray-50 cursor-pointer">
+                <motion.button key={method.label} variants={fadeUp} whileTap={{ scale: 0.97 }} onClick={() => handleContact(method.action)} className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm border border-border/50 active:bg-gray-50 cursor-pointer">
                   <div className={`w-11 h-11 rounded-xl ${method.color} flex items-center justify-center shadow-md`}><Icon className="w-5 h-5 text-white" /></div>
                   <div className="flex-1 text-left"><p className="font-semibold text-sm">{method.label}</p><p className="text-text-muted text-xs">{method.desc}</p></div>
                   <ChevronRight className="w-4 h-4 text-text-muted" />
@@ -104,11 +114,11 @@ export default function Support() {
             {/* Contact methods */}
             <div className="bg-white rounded-2xl p-6 border border-border/50 shadow-sm">
               <h3 className="font-bold text-base mb-4 flex items-center gap-2"><Headphones className="w-5 h-5 text-primary" /> Liên hệ với chúng tôi</h3>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 {contactMethods.map((method) => {
                   const Icon = method.icon
                   return (
-                    <motion.button key={method.label} whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} className="p-5 rounded-2xl border border-border/50 text-center hover:shadow-md transition-all cursor-pointer group">
+                    <motion.button key={method.label} whileHover={{ y: -4 }} whileTap={{ scale: 0.97 }} onClick={() => handleContact(method.action)} className="p-5 rounded-2xl border border-border/50 text-center hover:shadow-md transition-all cursor-pointer group">
                       <div className={`w-12 h-12 rounded-xl ${method.color} flex items-center justify-center shadow-md mx-auto mb-3 group-hover:scale-110 transition-transform`}><Icon className="w-6 h-6 text-white" /></div>
                       <p className="font-semibold text-sm">{method.label}</p>
                       <p className="text-text-muted text-xs mt-0.5">{method.desc}</p>
@@ -147,15 +157,18 @@ export default function Support() {
             </div>
 
             <div className="bg-gradient-to-br from-primary to-primary-dark rounded-2xl p-6 text-white shadow-md">
-              <h3 className="font-bold text-lg mb-2">Cần hỗ trợ gấp?</h3>
-              <p className="text-white/70 text-sm mb-4">Gọi hotline để được hỗ trợ ngay lập tức bởi đội ngũ tư vấn viên chuyên nghiệp.</p>
-              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} className="w-full py-3 bg-white text-primary font-bold rounded-xl shadow-md cursor-pointer">
-                📞 1800-XXX-XXX
+              <h3 className="font-bold text-lg mb-2">Chat trực tiếp ngay!</h3>
+              <p className="text-white/70 text-sm mb-4">Nhấn để kết nối với đội ngũ hỗ trợ chuyên nghiệp 24/7.</p>
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setChatOpen(true)} className="w-full py-3 bg-white text-primary font-bold rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2">
+                <MessageCircle className="w-5 h-5" /> Bắt đầu chat
               </motion.button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Chat Widget */}
+      <ChatWidget open={chatOpen} onClose={() => setChatOpen(false)} />
     </PageTransition>
   )
 }

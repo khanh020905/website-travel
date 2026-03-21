@@ -4,6 +4,7 @@ import gsap from 'gsap'
 import { Calendar, DollarSign, Users, Eye, MoreHorizontal, RefreshCw, BarChart3, PieChart, Shield, Settings, Bell, ArrowUpRight, ArrowDownRight, Search, Filter } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PageTransition from '../components/PageTransition'
+import AdminChatSection from '../components/AdminChatSection'
 
 const defaultStats = [
   { label: 'Tổng đặt chỗ', value: '0', change: 'Hiện đang trống', up: true, icon: Calendar, color: 'bg-blue-500', lightColor: 'bg-blue-50' },
@@ -245,39 +246,39 @@ export default function AdminDashboard() {
     return s
   })
 
-  // Tour limit settings
-  const [tourLimit, setTourLimit] = useState(50)
-  const [tourLimitInput, setTourLimitInput] = useState('50')
-  const [savingLimit, setSavingLimit] = useState(false)
-  const [limitSaved, setLimitSaved] = useState(false)
+  // Tour price settings (in $)
+  const [tourBasePrice, setTourBasePrice] = useState(10)
+  const [tourPriceInput, setTourPriceInput] = useState('10.00')
+  const [savingPrice, setSavingPrice] = useState(false)
+  const [priceSaved, setPriceSaved] = useState(false)
 
   useEffect(() => {
     supabase
       .from('app_settings')
       .select('value')
-      .eq('key', 'max_tour_bookings')
+      .eq('key', 'tour_base_price')
       .single()
       .then(({ data }: { data: { value: string } | null }) => {
         if (data?.value) {
-          setTourLimit(parseInt(data.value, 10))
-          setTourLimitInput(data.value)
+          setTourBasePrice(parseFloat(data.value))
+          setTourPriceInput(parseFloat(data.value).toFixed(2))
         }
       })
   }, [])
 
-  const saveTourLimit = async () => {
-    const val = parseInt(tourLimitInput, 10)
-    if (isNaN(val) || val < 1) return
-    setSavingLimit(true)
+  const saveTourPrice = async () => {
+    const val = parseFloat(tourPriceInput)
+    if (isNaN(val) || val < 0.01 || val > 40) return
+    setSavingPrice(true)
     const { error } = await supabase
       .from('app_settings')
-      .upsert({ key: 'max_tour_bookings', value: String(val), updated_at: new Date().toISOString() })
+      .upsert({ key: 'tour_base_price', value: String(val), updated_at: new Date().toISOString() })
     if (!error) {
-      setTourLimit(val)
-      setLimitSaved(true)
-      setTimeout(() => setLimitSaved(false), 2000)
+      setTourBasePrice(val)
+      setPriceSaved(true)
+      setTimeout(() => setPriceSaved(false), 2000)
     }
-    setSavingLimit(false)
+    setSavingPrice(false)
   }
 
   return (
@@ -323,28 +324,35 @@ export default function AdminDashboard() {
             <RevenueChart />
           </div>
 
-          <h3 className="font-bold text-sm mb-3 flex items-center gap-2"><Settings className="w-4 h-4 text-primary" /> Giới hạn đặt tour</h3>
+          <h3 className="font-bold text-sm mb-3 flex items-center gap-2"><Settings className="w-4 h-4 text-primary" /> Giá đặt tour ($)</h3>
           <div className="bg-white rounded-2xl p-4 border border-border/50 shadow-sm">
-            <p className="text-text-muted text-xs mb-3">Số lượng tối đa mỗi người dùng có thể đặt:</p>
+            <p className="text-text-muted text-xs mb-1">Giá cơ bản mỗi lần đặt tour (USD):</p>
+            <p className="text-text-muted text-[10px] mb-3">+0.6% mỗi lần đặt • Tối đa $40.00</p>
             <div className="flex items-center gap-2 mb-3">
-              <button onClick={() => setTourLimitInput(String(Math.max(1, parseInt(tourLimitInput || '0', 10) - 10)))} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-lg active:bg-gray-200 cursor-pointer">-</button>
-              <input
-                type="number"
-                value={tourLimitInput}
-                onChange={(e) => setTourLimitInput(e.target.value)}
-                className="flex-1 text-center text-2xl font-black py-2 border border-border rounded-xl focus:border-primary focus:outline-none"
-              />
-              <button onClick={() => setTourLimitInput(String(parseInt(tourLimitInput || '0', 10) + 10))} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-lg active:bg-gray-200 cursor-pointer">+</button>
+              <button onClick={() => setTourPriceInput(String(Math.max(0.01, parseFloat(tourPriceInput || '0') - 0.5).toFixed(2)))} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-lg active:bg-gray-200 cursor-pointer">-</button>
+              <div className="flex-1 relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xl font-black text-text-muted">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max="40"
+                  value={tourPriceInput}
+                  onChange={(e) => setTourPriceInput(e.target.value)}
+                  className="w-full text-center text-2xl font-black py-2 pl-8 border border-border rounded-xl focus:border-primary focus:outline-none"
+                />
+              </div>
+              <button onClick={() => setTourPriceInput(String(Math.min(40, parseFloat(tourPriceInput || '0') + 0.5).toFixed(2)))} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-lg active:bg-gray-200 cursor-pointer">+</button>
             </div>
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={saveTourLimit}
-              disabled={savingLimit}
+              onClick={saveTourPrice}
+              disabled={savingPrice}
               className="w-full py-2.5 bg-primary text-white font-semibold text-sm rounded-xl disabled:opacity-50 cursor-pointer"
             >
-              {savingLimit ? 'Đang lưu...' : limitSaved ? '✅ Đã lưu!' : 'Lưu thay đổi'}
+              {savingPrice ? 'Đang lưu...' : priceSaved ? '✅ Đã lưu!' : 'Lưu thay đổi'}
             </motion.button>
-            <p className="text-[10px] text-text-muted text-center mt-2">Hiện tại: <span className="font-bold text-primary">{tourLimit}</span></p>
+            <p className="text-[10px] text-text-muted text-center mt-2">Hiện tại: <span className="font-bold text-green-600">${tourBasePrice.toFixed(2)}</span></p>
           </div>
 
           <h3 className="font-bold text-sm mb-3 mt-6">Top điểm đến</h3>
@@ -372,6 +380,12 @@ export default function AdminDashboard() {
           <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2"><Users className="w-4 h-4 text-purple-500" /> Người dùng {!profilesLoading && <span className="text-text-muted font-normal">({profiles.length})</span>}</h3>
           <div className="bg-white rounded-2xl p-4 border border-border/50 shadow-sm mb-6">
             <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} compact />
+          </div>
+
+          {/* Chat Management - Mobile */}
+          <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2">💬 Tin nhắn</h3>
+          <div className="mb-6">
+            <AdminChatSection />
           </div>
         </div>
       </div>
@@ -477,29 +491,36 @@ export default function AdminDashboard() {
         {/* Recent Bookings Table */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between p-6 pb-4">
-            <h3 className="font-bold text-base flex items-center gap-2"><Settings className="w-5 h-5 text-primary" /> Giới hạn đặt tour</h3>
+            <h3 className="font-bold text-base flex items-center gap-2"><Settings className="w-5 h-5 text-primary" /> Giá đặt tour ($)</h3>
           </div>
           <div className="px-6 pb-6">
-            <p className="text-text-muted text-sm mb-4">Số lượng tối đa mỗi người dùng có thể đặt tour. Khi vượt giới hạn, hệ thống sẽ thông báo cho người dùng.</p>
+            <p className="text-text-muted text-sm mb-1">Giá cơ bản mỗi lần đặt tour (USD). Mỗi lần đặt, giá tăng thêm 0.6%.</p>
+            <p className="text-text-muted text-xs mb-4">Giá tối đa: <span className="font-bold text-red-500">$40.00</span></p>
             <div className="flex items-center gap-4">
-              <button onClick={() => setTourLimitInput(String(Math.max(1, parseInt(tourLimitInput || '0', 10) - 10)))} className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl transition-colors cursor-pointer">-</button>
-              <input
-                type="number"
-                value={tourLimitInput}
-                onChange={(e) => setTourLimitInput(e.target.value)}
-                className="w-32 text-center text-3xl font-black py-2 border-2 border-border rounded-xl focus:border-primary focus:outline-none transition-colors"
-              />
-              <button onClick={() => setTourLimitInput(String(parseInt(tourLimitInput || '0', 10) + 10))} className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl transition-colors cursor-pointer">+</button>
+              <button onClick={() => setTourPriceInput(String(Math.max(0.01, parseFloat(tourPriceInput || '0') - 0.5).toFixed(2)))} className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl transition-colors cursor-pointer">-</button>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl font-black text-text-muted">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max="40"
+                  value={tourPriceInput}
+                  onChange={(e) => setTourPriceInput(e.target.value)}
+                  className="w-36 text-center text-3xl font-black py-2 pl-8 border-2 border-border rounded-xl focus:border-primary focus:outline-none transition-colors"
+                />
+              </div>
+              <button onClick={() => setTourPriceInput(String(Math.min(40, parseFloat(tourPriceInput || '0') + 0.5).toFixed(2)))} className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl transition-colors cursor-pointer">+</button>
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={saveTourLimit}
-                disabled={savingLimit}
+                onClick={saveTourPrice}
+                disabled={savingPrice}
                 className="px-6 py-3 bg-primary text-white font-semibold text-sm rounded-xl disabled:opacity-50 cursor-pointer hover:bg-primary-dark transition-colors"
               >
-                {savingLimit ? 'Đang lưu...' : limitSaved ? '✅ Đã lưu!' : 'Lưu thay đổi'}
+                {savingPrice ? 'Đang lưu...' : priceSaved ? '✅ Đã lưu!' : 'Lưu thay đổi'}
               </motion.button>
-              <p className="text-sm text-text-muted">Hiện tại: <span className="font-bold text-primary text-lg">{tourLimit}</span></p>
+              <p className="text-sm text-text-muted">Hiện tại: <span className="font-bold text-green-600 text-lg">${tourBasePrice.toFixed(2)}</span></p>
             </div>
           </div>
         </motion.div>
@@ -513,6 +534,11 @@ export default function AdminDashboard() {
           <div className="px-6 pb-6">
             <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} />
           </div>
+        </motion.div>
+
+        {/* Chat Management - Desktop */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }} className="mt-6">
+          <AdminChatSection />
         </motion.div>
       </div>
     </PageTransition>

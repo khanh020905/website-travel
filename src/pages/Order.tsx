@@ -1,47 +1,61 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, AlertTriangle } from 'lucide-react'
+import { Search, AlertTriangle, Send, X } from 'lucide-react'
 import gsap from 'gsap'
 import UserAvatar, { useUserInfo } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
 import { supabase } from '../lib/supabase'
 
+const COST_PER_CLICK = 0.6 // $0.60 per booking
+
 export default function Order() {
   const { displayName, email } = useUserInfo()
   const [orderCount, setOrderCount] = useState(0)
-  const [maxOrders, setMaxOrders] = useState(50)
+  const [maxPrice, setMaxPrice] = useState(40)
   const [exceeded, setExceeded] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const progressRef = useRef<HTMLDivElement>(null)
   const counterRef = useRef<HTMLSpanElement>(null)
 
-  // Fetch max bookings from settings
+  // Each click costs $0.60
+  const costPerClick = COST_PER_CLICK
+  const totalSpent = orderCount * costPerClick
+  const progressPct = Math.min(100, (totalSpent / maxPrice) * 100)
+  const remaining = Math.max(0, maxPrice - totalSpent)
+
+  // Fetch max price from admin settings
   useEffect(() => {
     supabase
       .from('app_settings')
       .select('value')
-      .eq('key', 'max_tour_bookings')
+      .eq('key', 'tour_base_price')
       .single()
       .then(({ data }: { data: { value: string } | null }) => {
-        if (data?.value) setMaxOrders(parseInt(data.value, 10))
+        if (data?.value) setMaxPrice(parseFloat(data.value))
       })
   }, [])
 
   useEffect(() => {
     if (progressRef.current) {
-      gsap.fromTo(progressRef.current, { width: '0%' }, { width: `${(orderCount / maxOrders) * 100}%`, duration: 0.8, ease: 'power2.out' })
+      gsap.fromTo(progressRef.current, { width: '0%' }, { width: `${progressPct}%`, duration: 0.8, ease: 'power2.out' })
     }
-  }, [orderCount, maxOrders])
+  }, [progressPct])
 
-  const handleOrder = () => {
-    if (orderCount >= maxOrders) {
+  const handleClickOrder = () => {
+    if (totalSpent + costPerClick > maxPrice + 0.001) {
       setExceeded(true)
       setTimeout(() => setExceeded(false), 3000)
       return
     }
+    setShowConfirm(true)
+  }
+
+  const handleConfirmOrder = () => {
     setOrderCount((prev) => prev + 1)
     setExceeded(false)
+    setShowConfirm(false)
     if (counterRef.current) {
-      gsap.fromTo(counterRef.current, { scale: 1.3, color: '#F97316' }, { scale: 1, color: '#0F172A', duration: 0.4, ease: 'back.out(2)' })
+      gsap.fromTo(counterRef.current, { scale: 1.3, color: '#22c55e' }, { scale: 1, color: '#0F172A', duration: 0.4, ease: 'back.out(2)' })
     }
   }
 
@@ -71,7 +85,11 @@ export default function Order() {
 
         <div className="px-5 pt-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="grid grid-cols-3 gap-px bg-border rounded-2xl overflow-hidden shadow-sm">
-            {[{ label: 'Số dư', value: '0.000đ' }, { label: 'Tỷ lệ', value: '0.6%' }, { label: 'Tổng số tiền', value: '0đ' }].map((stat) => (
+            {[
+              { label: 'Mỗi lần đặt', value: `+$${costPerClick.toFixed(2)}` },
+              { label: 'Tỷ lệ', value: '+0.6%' },
+              { label: 'Tổng chi', value: `$${totalSpent.toFixed(2)}` },
+            ].map((stat) => (
               <div key={stat.label} className="bg-white py-3 px-2 text-center">
                 <p className="text-text-muted text-[10px] font-medium uppercase tracking-wider">{stat.label}</p>
                 <p className="font-bold text-sm mt-0.5">{stat.value}</p>
@@ -80,29 +98,52 @@ export default function Order() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.45 }} className="text-center mt-8 mb-2">
+            <p className="text-xs text-text-muted mb-1">Đã tích lũy</p>
             <div className="inline-flex items-baseline gap-1">
-              <span ref={counterRef} className="text-5xl font-black tracking-tight">{String(orderCount).padStart(2, '0')}</span>
-              <span className="text-2xl font-light text-text-muted">/</span>
-              <span className="text-2xl font-bold text-text-secondary">{maxOrders}</span>
+              <span className="text-xl font-bold text-text-muted">$</span>
+              <span ref={counterRef} className="text-5xl font-black tracking-tight">{totalSpent.toFixed(2)}</span>
             </div>
+            <p className="text-xs text-text-muted mt-1">Còn lại: <span className="font-bold text-primary">${remaining.toFixed(2)}</span> / ${maxPrice.toFixed(2)}</p>
             <div className="mx-auto mt-3 w-48 h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div ref={progressRef} className="h-full bg-gradient-to-r from-primary to-primary-light rounded-full" style={{ width: `${(orderCount / maxOrders) * 100}%` }} />
+              <div ref={progressRef} className={`h-full rounded-full ${totalSpent >= maxPrice ? 'bg-gradient-to-r from-red-400 to-red-500' : 'bg-gradient-to-r from-primary to-primary-light'}`} style={{ width: `${progressPct}%` }} />
             </div>
           </motion.div>
 
           <div className="px-3 mt-6">
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={handleOrder} className="w-full py-4 bg-gradient-to-r from-primary-dark via-primary to-primary-light text-white font-bold text-lg rounded-2xl shadow-lg shadow-primary/30 relative overflow-hidden group cursor-pointer">
-              <span className="relative z-10">ĐẶT TOUR</span>
-              <motion.div className="absolute inset-0 bg-gradient-to-r from-primary-light to-primary" initial={{ x: '-100%' }} whileHover={{ x: '0%' }} transition={{ duration: 0.3 }} />
-            </motion.button>
+            <AnimatePresence mode="wait">
+              {!showConfirm ? (
+                <motion.button key="order" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={handleClickOrder} className="w-full py-4 bg-gradient-to-r from-primary-dark via-primary to-primary-light text-white font-bold text-lg rounded-2xl shadow-lg shadow-primary/30 relative overflow-hidden group cursor-pointer">
+                  <span className="relative z-10">ĐẶT TOUR — +${costPerClick.toFixed(2)}</span>
+                  <motion.div className="absolute inset-0 bg-gradient-to-r from-primary-light to-primary" initial={{ x: '-100%' }} whileHover={{ x: '0%' }} transition={{ duration: 0.3 }} />
+                </motion.button>
+              ) : (
+                <motion.div
+                  key="confirm"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="space-y-2"
+                >
+                  <p className="text-center text-sm font-semibold text-text-primary">Xác nhận đặt tour? <span className="text-primary">+${costPerClick.toFixed(2)}</span></p>
+                  <div className="flex gap-2">
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowConfirm(false)} className="flex-1 py-3.5 bg-gray-100 text-text-primary font-semibold text-base rounded-2xl cursor-pointer hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+                      <X className="w-4 h-4" /> Hủy
+                    </motion.button>
+                    <motion.button whileTap={{ scale: 0.95 }} onClick={handleConfirmOrder} className="flex-1 py-3.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-base rounded-2xl shadow-lg shadow-green-500/30 cursor-pointer flex items-center justify-center gap-2">
+                      <Send className="w-4 h-4" /> Gửi đi
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <AnimatePresence>
-              {orderCount > 0 && !exceeded && (
-                <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center text-sm text-text-secondary mt-3">🎉 Đã đặt {orderCount} tour!</motion.p>
+              {orderCount > 0 && !exceeded && !showConfirm && (
+                <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center text-sm text-text-secondary mt-3">🎉 Đã đặt {orderCount} tour! Tổng: ${totalSpent.toFixed(2)} / ${maxPrice.toFixed(2)}</motion.p>
               )}
               {exceeded && (
                 <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
                   <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                  <p className="text-red-600 text-sm font-semibold">Bạn đã đặt quá số lượng!</p>
+                  <p className="text-red-600 text-sm font-semibold">Đã đạt tối đa ${maxPrice.toFixed(2)}!</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -115,11 +156,11 @@ export default function Order() {
             ) : (
               <div className="space-y-2">
                 {[...Array(Math.min(orderCount, 3))].map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 py-2 border-b border-border/30 last:border-0">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs">🏖️</div>
-                    <div className="flex-1"><p className="text-xs font-semibold">Tour #{orderCount - i}</p><p className="text-[10px] text-text-muted">Vừa xong</p></div>
-                    <span className="text-xs font-bold text-success">Đã xác nhận</span>
-                  </div>
+                    <div key={i} className="flex items-center gap-3 py-2 border-b border-border/30 last:border-0">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-xs">🏖️</div>
+                      <div className="flex-1"><p className="text-xs font-semibold">Tour #{orderCount - i}</p><p className="text-[10px] text-text-muted">+0.6% • Vừa xong</p></div>
+                      <span className="text-xs font-bold text-green-600">+${costPerClick.toFixed(2)}</span>
+                    </div>
                 ))}
               </div>
             )}
@@ -129,7 +170,7 @@ export default function Order() {
 
       {/* ===== DESKTOP ===== */}
       <div className="hidden md:block p-6 lg:p-8">
-        {/* Top bar - synced with Khám phá */}
+        {/* Top bar */}
         <div className="flex items-center justify-between mb-6">
           <motion.h1 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="text-2xl lg:text-3xl font-bold text-text-primary">Đặt Tour</motion.h1>
           <div className="flex items-center gap-3">
@@ -162,7 +203,11 @@ export default function Order() {
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
-              {[{ label: 'Số dư', value: '0.000đ', icon: '💰' }, { label: 'Tỷ lệ hoàn thành', value: '0.6%', icon: '📊' }, { label: 'Tổng số tiền', value: '0đ', icon: '💎' }].map((stat) => (
+              {[
+                { label: 'Mỗi lần đặt', value: `+$${costPerClick.toFixed(2)}`, icon: '💰' },
+                { label: 'Tỷ lệ tăng', value: '+0.6% / lần', icon: '📊' },
+                { label: 'Tổng chi', value: `$${totalSpent.toFixed(2)}`, icon: '💎' },
+              ].map((stat) => (
                 <motion.div key={stat.label} whileHover={{ y: -2 }} className="bg-white rounded-2xl p-5 border border-border/50 shadow-sm text-center cursor-pointer hover:shadow-md transition-all">
                   <p className="text-2xl mb-2">{stat.icon}</p>
                   <p className="text-xl font-black">{stat.value}</p>
@@ -179,11 +224,11 @@ export default function Order() {
               ) : (
                 <div className="space-y-3">
                   {[...Array(Math.min(orderCount, 5))].map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 bg-surface-dim rounded-xl">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-lg">🏖️</div>
-                      <div className="flex-1"><p className="text-sm font-semibold">Tour #{orderCount - i}</p><p className="text-xs text-text-muted">Vừa xong</p></div>
-                      <span className="text-xs font-bold text-success px-3 py-1 bg-green-50 rounded-full">Đã xác nhận</span>
-                    </div>
+                      <div key={i} className="flex items-center gap-3 p-3 bg-surface-dim rounded-xl">
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-lg">🏖️</div>
+                        <div className="flex-1"><p className="text-sm font-semibold">Tour #{orderCount - i}</p><p className="text-xs text-text-muted">+0.6% • Vừa xong</p></div>
+                        <span className="text-xs font-bold text-green-600 px-3 py-1 bg-green-50 rounded-full">+${costPerClick.toFixed(2)}</span>
+                      </div>
                   ))}
                 </div>
               )}
@@ -195,25 +240,48 @@ export default function Order() {
             {/* Order counter */}
             <div className="bg-white rounded-2xl p-6 border border-border/50 shadow-sm text-center">
               <h3 className="font-bold text-base mb-4">Đặt chỗ</h3>
-              <div className="inline-flex items-baseline gap-1 mb-3">
-                <span ref={counterRef} className="text-5xl font-black tracking-tight">{String(orderCount).padStart(2, '0')}</span>
-                <span className="text-xl font-light text-text-muted">/</span>
-                <span className="text-xl font-bold text-text-secondary">{maxOrders}</span>
+              <div className="inline-flex items-baseline gap-1 mb-1">
+                <span className="text-xl font-bold text-text-muted">$</span>
+                <span ref={counterRef} className="text-5xl font-black tracking-tight">{totalSpent.toFixed(2)}</span>
               </div>
-              <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden mb-5">
-                <div ref={progressRef} className="h-full bg-gradient-to-r from-primary to-primary-light rounded-full transition-all" style={{ width: `${(orderCount / maxOrders) * 100}%` }} />
+              <p className="text-xs text-text-muted mb-3">Tối đa: <span className="font-bold text-red-500">${maxPrice.toFixed(2)}</span></p>
+              <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden mb-2">
+                <div ref={progressRef} className={`h-full rounded-full transition-all ${totalSpent >= maxPrice ? 'bg-gradient-to-r from-red-400 to-red-500' : 'bg-gradient-to-r from-primary to-primary-light'}`} style={{ width: `${progressPct}%` }} />
               </div>
-              <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={handleOrder} className="w-full py-3.5 bg-gradient-to-r from-primary-dark via-primary to-primary-light text-white font-bold text-base rounded-xl shadow-lg shadow-primary/30 cursor-pointer">
-                ĐẶT TOUR
-              </motion.button>
+              <p className="text-[10px] text-text-muted mb-4">Đặt {orderCount} lần • +${costPerClick.toFixed(2)}/lần • Còn ${remaining.toFixed(2)}</p>
+              <AnimatePresence mode="wait">
+                {!showConfirm ? (
+                  <motion.button key="order" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} onClick={handleClickOrder} className="w-full py-3.5 bg-gradient-to-r from-primary-dark via-primary to-primary-light text-white font-bold text-base rounded-xl shadow-lg shadow-primary/30 cursor-pointer">
+                    ĐẶT TOUR — +${costPerClick.toFixed(2)}
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    key="confirm"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="space-y-2"
+                  >
+                    <p className="text-center text-sm font-semibold text-text-primary">Xác nhận? <span className="text-primary">+${costPerClick.toFixed(2)}</span></p>
+                    <div className="flex gap-2">
+                      <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowConfirm(false)} className="flex-1 py-3 bg-gray-100 text-text-primary font-semibold text-sm rounded-xl cursor-pointer hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5">
+                        <X className="w-3.5 h-3.5" /> Hủy
+                      </motion.button>
+                      <motion.button whileTap={{ scale: 0.95 }} onClick={handleConfirmOrder} className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-green-500/30 cursor-pointer flex items-center justify-center gap-1.5">
+                        <Send className="w-3.5 h-3.5" /> Gửi đi
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <AnimatePresence>
-                {orderCount > 0 && !exceeded && (
+                {orderCount > 0 && !exceeded && !showConfirm && (
                   <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-sm text-text-secondary mt-3">🎉 Đã đặt {orderCount} tour!</motion.p>
                 )}
                 {exceeded && (
                   <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
                     <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                    <p className="text-red-600 text-sm font-semibold">Bạn đã đặt quá số lượng!</p>
+                    <p className="text-red-600 text-sm font-semibold">Đã đạt tối đa ${maxPrice.toFixed(2)}!</p>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -222,7 +290,7 @@ export default function Order() {
             {/* Quick destinations */}
             <div className="bg-white rounded-2xl p-5 border border-border/50 shadow-sm">
               <h3 className="font-bold text-sm mb-3">Tour phổ biến</h3>
-              {[{ name: 'Sapa', price: '3.1tr', img: '/images/sapa.png' }, { name: 'Hạ Long', price: '4.5tr', img: '/images/halong.png' }, { name: 'Phú Quốc', price: '5.2tr', img: '/images/phuquoc.png' }].map((t) => (
+              {[{ name: 'Sapa', price: '$12.50', img: '/images/sapa.png' }, { name: 'Hạ Long', price: '$18.00', img: '/images/halong.png' }, { name: 'Phú Quốc', price: '$22.00', img: '/images/phuquoc.png' }].map((t) => (
                 <div key={t.name} className="flex items-center gap-3 py-2.5 border-b border-border/30 last:border-0 cursor-pointer hover:bg-surface-dim rounded-lg px-1 transition-colors">
                   <div className="w-10 h-10 rounded-lg overflow-hidden"><img src={t.img} alt={t.name} className="w-full h-full object-cover" /></div>
                   <div className="flex-1"><p className="font-semibold text-sm">{t.name}</p></div>
