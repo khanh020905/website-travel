@@ -13,7 +13,6 @@ export default function Order() {
   const { displayName, email } = useUserInfo()
   const { user } = useAuth()
   const [orderCount, setOrderCount] = useState(0)
-  const [maxPrice, setMaxPrice] = useState(40)
   const [balance, setBalance] = useState(0)
   const [exceeded, setExceeded] = useState(false)
   const [insufficientBalance, setInsufficientBalance] = useState(false)
@@ -27,17 +26,8 @@ export default function Order() {
   const maxBookings = 60
   const progressPct = Math.min(100, (orderCount / maxBookings) * 100)
 
-  // Fetch max price + user balance
+  // Fetch user balance
   useEffect(() => {
-    supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'tour_base_price')
-      .single()
-      .then(({ data }: { data: { value: string } | null }) => {
-        if (data?.value) setMaxPrice(parseFloat(data.value))
-      })
-
     if (user) {
       supabase
         .from('profiles')
