@@ -1,5 +1,6 @@
-import { Routes, Route, useLocation, Navigate } from 'react-router-dom'
+import { Routes, Route, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import { AnimatePresence } from 'framer-motion'
+import { useEffect } from 'react'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import Order from './pages/Order'
@@ -7,17 +8,31 @@ import Support from './pages/Support'
 import Profile from './pages/Profile'
 import AdminDashboard from './pages/AdminDashboard'
 import ComingSoon from './pages/ComingSoon'
+import ResetPassword from './pages/ResetPassword'
 import BottomNav from './components/BottomNav'
 import DesktopNavbar from './components/DesktopNavbar'
 import Footer from './components/Footer'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
+import { useAuth } from './contexts/AuthContext'
 
 function App() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { isRecovery, clearRecovery } = useAuth()
   const isLoginPage = location.pathname === '/login'
+  const isResetPage = location.pathname === '/reset-password'
   const isHomePage = location.pathname === '/home'
-  const needsNavbarPadding = !isLoginPage && !isHomePage
+  const hideChrome = isLoginPage || isResetPage
+  const needsNavbarPadding = !isLoginPage && !isResetPage && !isHomePage
+
+  // Redirect to reset-password page when recovery event is detected
+  useEffect(() => {
+    if (isRecovery) {
+      clearRecovery()
+      navigate('/reset-password', { replace: true })
+    }
+  }, [isRecovery, navigate, clearRecovery])
 
   return (
     <div className="relative min-h-dvh">
@@ -26,6 +41,7 @@ function App() {
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
             <Route path="/order" element={<ProtectedRoute><Order /></ProtectedRoute>} />
             <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
@@ -37,11 +53,12 @@ function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </AnimatePresence>
-        {!isLoginPage && <Footer />}
+        {!hideChrome && <Footer />}
       </div>
-      {!isLoginPage && <BottomNav />}
+      {!hideChrome && <BottomNav />}
     </div>
   )
 }
 
 export default App
+

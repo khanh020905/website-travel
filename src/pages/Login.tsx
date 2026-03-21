@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { Eye, EyeOff, Mail, Lock, Plane, ChevronsRight, Loader2, User, Ticket } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, Plane, ChevronsRight, Loader2, User, Ticket, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -96,7 +96,7 @@ function SwipeButton({ loading, label, onSwipeComplete }: {
   )
 }
 
-type AuthMode = 'login' | 'register'
+type AuthMode = 'login' | 'register' | 'forgot'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -108,6 +108,7 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [inviteCode, setInviteCode] = useState('')
+  const [forgotEmail, setForgotEmail] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
@@ -189,6 +190,29 @@ export default function Login() {
     }
   }
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setSuccess(null)
+
+    if (!forgotEmail) {
+      setError('Vui lòng nhập email của bạn')
+      return
+    }
+
+    setLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+    setLoading(false)
+
+    if (error) {
+      setError(error.message)
+    } else {
+      setSuccess('Đã gửi email đặt lại mật khẩu! Vui lòng kiểm tra hộp thư của bạn.')
+    }
+  }
+
   const handleGoogleLogin = async () => {
     await signInWithGoogle()
   }
@@ -201,6 +225,7 @@ export default function Login() {
     setConfirmPassword('')
     setDisplayName('')
     setInviteCode('')
+    setForgotEmail('')
   }
 
   return (
@@ -253,6 +278,92 @@ export default function Login() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="w-full max-w-[420px] bg-white/80 backdrop-blur-2xl rounded-3xl p-8 lg:p-10 border border-white/40 shadow-2xl"
           >
+            <AnimatePresence mode="wait">
+            {mode === 'forgot' ? (
+              /* ── Forgot Password View (Desktop) ── */
+              <motion.div
+                key="forgot-desktop"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                <button
+                  onClick={() => switchMode('login')}
+                  className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700 text-sm font-medium mb-6 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  Quay lại đăng nhập
+                </button>
+
+                <h2 className="text-gray-900 text-xl font-bold mb-2">Quên mật khẩu?</h2>
+                <p className="text-gray-500 text-sm mb-6">
+                  Nhập email của bạn và chúng tôi sẽ gửi link đặt lại mật khẩu.
+                </p>
+
+                {/* Error/Success messages */}
+                <AnimatePresence>
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 mb-4"
+                    >
+                      {error}
+                    </motion.div>
+                  )}
+                  {success && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl px-4 py-3 mb-4"
+                    >
+                      {success}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div>
+                    <label className="block text-gray-700 text-sm font-medium mb-1.5">Email</label>
+                    <div className="relative">
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+                      <input
+                        type="email"
+                        placeholder="Nhập email của bạn"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm placeholder:text-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all duration-300"
+                      />
+                    </div>
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={loading}
+                    type="submit"
+                    className="w-full py-3.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      'GỬI LINK ĐẶT LẠI'
+                    )}
+                  </motion.button>
+                </form>
+              </motion.div>
+            ) : (
+              /* ── Login / Register View (Desktop) ── */
+              <motion.div
+                key="auth-desktop"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.3 }}
+              >
             {/* Tab switcher */}
             <div className="flex bg-gray-100 rounded-2xl p-1 mb-8">
               <button
@@ -403,7 +514,7 @@ export default function Login() {
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <label className="block text-gray-700 text-sm font-medium mb-1.5"> Mã mời</label>
+                    <label className="block text-gray-700 text-sm font-medium mb-1.5"> Mã mời</label>
                     <div className="relative">
                       <Ticket className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
                       <input
@@ -422,7 +533,7 @@ export default function Login() {
               {/* Remember me / Forgot password (login only) */}
               {mode === 'login' && (
                 <div className="flex items-center justify-end">
-                  <button type="button" className="text-primary text-sm font-medium hover:text-primary-dark transition-colors cursor-pointer">
+                  <button type="button" onClick={() => switchMode('forgot')} className="text-primary text-sm font-medium hover:text-primary-dark transition-colors cursor-pointer">
                     Quên mật khẩu?
                   </button>
                 </div>
@@ -475,6 +586,9 @@ export default function Login() {
                 {mode === 'login' ? 'Tạo tài khoản' : 'Đăng nhập'}
               </button>
             </p>
+              </motion.div>
+            )}
+            </AnimatePresence>
           </motion.div>
         </div>
       </div>
@@ -514,12 +628,14 @@ export default function Login() {
               transition={{ duration: 0.3 }}
             >
               <h1 className="text-white text-2xl font-black mb-1">
-                {mode === 'login' ? 'Chào mừng trở lại' : 'Tạo tài khoản'}
+                {mode === 'login' ? 'Chào mừng trở lại' : mode === 'register' ? 'Tạo tài khoản' : 'Quên mật khẩu'}
               </h1>
               <p className="text-white/80 text-xs max-w-[240px] mx-auto leading-relaxed">
                 {mode === 'login'
                   ? 'Đăng nhập để tiếp tục khám phá những điểm đến tuyệt vời.'
-                  : 'Tham gia ngay và bắt đầu hành trình khám phá thế giới.'}
+                  : mode === 'register'
+                  ? 'Tham gia ngay và bắt đầu hành trình khám phá thế giới.'
+                  : 'Nhập email để nhận link đặt lại mật khẩu.'}
               </p>
             </motion.div>
           </AnimatePresence>
@@ -527,7 +643,8 @@ export default function Login() {
 
         {/* White card body */}
         <div className="flex-1 bg-white rounded-t-[28px] -mt-5 relative z-10 px-6 pt-6 pb-8 flex flex-col">
-          {/* Tab switcher */}
+          {/* Tab switcher (hidden in forgot mode) */}
+          {mode !== 'forgot' && (
           <div className="flex bg-gray-100 rounded-2xl p-1 mb-6">
             <button
               onClick={() => switchMode('login')}
@@ -550,6 +667,7 @@ export default function Login() {
               Đăng ký
             </button>
           </div>
+          )}
 
           {/* Error/Success messages */}
           <AnimatePresence>
@@ -575,6 +693,49 @@ export default function Login() {
             )}
           </AnimatePresence>
 
+          {/* ── Forgot Password View (Mobile) ── */}
+          {mode === 'forgot' && (
+            <div className="flex-1 flex flex-col">
+              <button
+                onClick={() => switchMode('login')}
+                className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700 text-sm font-medium mb-4 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Quay lại đăng nhập
+              </button>
+
+              <p className="text-gray-500 text-sm mb-5">
+                Nhập email của bạn và chúng tôi sẽ gửi link đặt lại mật khẩu.
+              </p>
+
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <div>
+                  <label className="block text-text-primary text-sm font-semibold mb-1.5">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-text-muted" />
+                    <input
+                      type="email"
+                      placeholder="Nhập email của bạn"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm placeholder:text-text-muted focus:border-primary focus:bg-white transition-all duration-300"
+                    />
+                  </div>
+                </div>
+
+                <SwipeButton
+                  loading={loading}
+                  label="Vuốt để gửi link đặt lại"
+                  onSwipeComplete={() => {
+                    const fakeEvent = { preventDefault: () => {} } as React.FormEvent
+                    handleForgotPassword(fakeEvent)
+                  }}
+                />
+              </form>
+            </div>
+          )}
+
+          {mode !== 'forgot' && (
           <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
             <div className="space-y-4">
               {/* Display Name (register only) */}
@@ -706,7 +867,7 @@ export default function Login() {
                     />
                     <span className="text-text-secondary text-xs font-medium">Nhớ mật khẩu</span>
                   </label>
-                  <button type="button" className="text-primary text-xs font-semibold cursor-pointer">
+                  <button type="button" onClick={() => switchMode('forgot')} className="text-primary text-xs font-semibold cursor-pointer">
                     Quên mật khẩu?
                   </button>
                 </div>
@@ -757,6 +918,7 @@ export default function Login() {
               </button>
             </p>
           </form>
+          )}
         </div>
       </div>
     </div>
