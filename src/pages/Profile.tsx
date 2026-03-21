@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion'
-import { Wallet, History, Settings, MapPin, Lock, Globe, LogOut, ChevronRight, CreditCard, Shield, Search, Edit3 } from 'lucide-react'
+import { Wallet, History, Settings, MapPin, Lock, Globe, LogOut, ChevronRight, CreditCard, Shield, Search, Edit3, LayoutDashboard } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import UserAvatar, { useUserInfo, useUserRole } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
 
 const menuItems = [
@@ -21,6 +23,14 @@ const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, tr
 
 export default function Profile() {
   const navigate = useNavigate()
+  const { signOut } = useAuth()
+  const { displayName, email } = useUserInfo()
+  const { isAdmin } = useUserRole()
+
+  const handleLogout = async () => {
+    await signOut()
+    navigate('/login')
+  }
 
   return (
     <PageTransition>
@@ -36,12 +46,12 @@ export default function Profile() {
             </div>
             <div className="flex items-center gap-4">
               <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 12, delay: 0.2 }} className="relative">
-                <div className="w-16 h-16 rounded-full overflow-hidden border-3 border-white/40 shadow-lg"><img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&q=80" alt="Avatar" className="w-full h-full object-cover" /></div>
+                <UserAvatar size={64} borderClass="border-3 border-white/40 shadow-lg" />
                 <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-green-400 rounded-full border-2 border-primary" />
               </motion.div>
               <div>
-                <h2 className="text-white font-bold text-lg">Quốc Khanh</h2>
-                <p className="text-white/60 text-xs">khanh@gmail.com</p>
+                <h2 className="text-white font-bold text-lg">{displayName}</h2>
+                <p className="text-white/60 text-xs">{email}</p>
                 <div className="mt-1"><div className="px-2 py-0.5 bg-white/15 rounded-full inline-block"><span className="text-white/80 text-[10px] font-medium">⭐ Thành viên Premium</span></div></div>
               </div>
             </div>
@@ -86,7 +96,25 @@ export default function Profile() {
             })}
           </div>
 
-          <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate('/login')} className="w-full mb-6 flex items-center justify-center gap-2 py-3.5 bg-red-50 text-red-500 font-semibold text-sm rounded-2xl border border-red-100 cursor-pointer">
+          {isAdmin && (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate('/admin')}
+              className="w-full mb-4 flex items-center gap-3 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl border border-purple-100 active:bg-purple-100 cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+                <LayoutDashboard className="w-5 h-5 text-purple-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-semibold text-sm text-purple-700">Bảng điều khiển</p>
+                <p className="text-purple-400 text-xs">Quản trị hệ thống</p>
+              </div>
+              <span className="px-2 py-0.5 bg-purple-500 text-white text-[10px] font-bold rounded-full">Admin</span>
+              <ChevronRight className="w-4 h-4 text-purple-400" />
+            </motion.button>
+          )}
+
+          <motion.button whileTap={{ scale: 0.97 }} onClick={handleLogout} className="w-full mb-6 flex items-center justify-center gap-2 py-3.5 bg-red-50 text-red-500 font-semibold text-sm rounded-2xl border border-red-100 cursor-pointer">
             <LogOut className="w-4.5 h-4.5" /> Đăng xuất
           </motion.button>
         </div>
@@ -103,8 +131,8 @@ export default function Profile() {
               <input type="text" placeholder="Tìm kiếm..." className="pl-10 pr-4 py-2.5 bg-white border border-border rounded-xl text-sm w-48 lg:w-56 placeholder:text-text-muted" />
             </div>
             <div className="flex items-center gap-3 pl-4 border-l border-border">
-              <div><p className="text-sm font-semibold text-right">Quốc Khanh</p><p className="text-[11px] text-text-muted text-right">khanh@gmail.com</p></div>
-              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary/30"><img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80" alt="Avatar" className="w-full h-full object-cover" /></div>
+              <div><p className="text-sm font-semibold text-right">{displayName}</p><p className="text-[11px] text-text-muted text-right">{email}</p></div>
+              <UserAvatar size={40} borderClass="border-2 border-primary/30" />
             </div>
           </div>
         </div>
@@ -116,12 +144,12 @@ export default function Profile() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl p-6 border border-border/50 shadow-sm">
               <div className="flex items-center gap-5">
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-md"><img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&q=80" alt="Avatar" className="w-full h-full object-cover" /></div>
+                  <UserAvatar size={80} className="rounded-2xl shadow-md" />
                   <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-white" />
                 </div>
                 <div className="flex-1">
-                  <h2 className="text-xl font-bold">Quốc Khanh</h2>
-                  <p className="text-text-muted text-sm">khanh@gmail.com</p>
+                  <h2 className="text-xl font-bold">{displayName}</h2>
+                  <p className="text-text-muted text-sm">{email}</p>
                   <div className="mt-2 flex items-center gap-2">
                     <span className="px-3 py-1 bg-primary-50 text-primary text-xs font-semibold rounded-full">⭐ Premium</span>
                     <span className="px-3 py-1 bg-green-50 text-green-600 text-xs font-semibold rounded-full">Đã xác minh</span>
@@ -176,8 +204,21 @@ export default function Profile() {
               </div>
             </div>
 
+            {isAdmin && (
+              <motion.button
+                whileHover={{ x: 3 }}
+                onClick={() => navigate('/admin')}
+                className="w-full flex items-center gap-3 px-5 py-3.5 bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 transition-colors cursor-pointer rounded-b-2xl"
+              >
+                <LayoutDashboard className="w-4.5 h-4.5 text-purple-600" />
+                <div className="flex-1 text-left"><p className="font-medium text-sm text-purple-700">Bảng điều khiển</p></div>
+                <span className="px-2 py-0.5 bg-purple-500 text-white text-[10px] font-bold rounded-full">Admin</span>
+                <ChevronRight className="w-3.5 h-3.5 text-purple-400 ml-1" />
+              </motion.button>
+            )}
+
             {/* Logout */}
-            <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.97 }} onClick={() => navigate('/login')} className="w-full flex items-center justify-center gap-2 py-3.5 bg-red-50 text-red-500 font-semibold text-sm rounded-2xl border border-red-100 hover:bg-red-100 transition-colors cursor-pointer">
+            <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.97 }} onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-3.5 bg-red-50 text-red-500 font-semibold text-sm rounded-2xl border border-red-100 hover:bg-red-100 transition-colors cursor-pointer">
               <LogOut className="w-4.5 h-4.5" /> Đăng xuất
             </motion.button>
           </div>

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Search, Bell, ChevronRight } from 'lucide-react'
 import gsap from 'gsap'
 import PageTransition from '../components/PageTransition'
+import UserAvatar, { useUserInfo } from '../components/UserAvatar'
 import HeroSection from '../components/HeroSection'
 import LandingSections from '../components/LandingSections'
 
@@ -31,6 +32,7 @@ const fadeUp = {
 
 export default function Home() {
   const cardsRef = useRef<HTMLDivElement>(null)
+  const { displayName } = useUserInfo()
 
   useEffect(() => {
     if (cardsRef.current) {
@@ -63,12 +65,10 @@ export default function Home() {
             <input type="text" placeholder="Tìm kiếm điểm đến..." className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl text-sm shadow-lg shadow-black/5 placeholder:text-text-muted border-0" />
           </motion.div>
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white/30">
-              <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80" alt="Avatar" className="w-full h-full object-cover" />
-            </div>
+            <UserAvatar size={44} borderClass="border-2 border-white/30" />
             <div>
               <h2 className="text-white font-bold text-lg">Xin chào! 👋</h2>
-              <p className="text-white/70 text-xs">Quốc Khanh</p>
+              <p className="text-white/70 text-xs">{displayName}</p>
             </div>
           </motion.div>
         </div>

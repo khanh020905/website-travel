@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, User, Compass, Bookmark, MapPin, CalendarDays, Camera, LayoutDashboard, Settings, LogOut } from 'lucide-react'
+import { Search, Compass, Bookmark, MapPin, CalendarDays, Camera, LayoutDashboard, Settings, LogOut } from 'lucide-react'
+import { useUserInfo } from './UserAvatar'
+import { useAuth } from '../contexts/AuthContext'
 
 const navLinks = ['Trang chủ', 'Giới thiệu', 'Bảng giá', 'Liên hệ', 'Blog']
 
@@ -36,6 +38,8 @@ export default function HeroSection() {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
+  const { displayName, email, avatarUrl, initial } = useUserInfo()
+  const { signOut } = useAuth()
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -83,8 +87,12 @@ export default function HeroSection() {
           </div>
 
           <div className="relative" ref={dropdownRef}>
-            <button onClick={() => setDropdownOpen(!dropdownOpen)} className="travelog-nav__avatar">
-              <User className="w-5 h-5 text-white/80" />
+            <button onClick={() => setDropdownOpen(!dropdownOpen)} className="travelog-nav__avatar overflow-hidden">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover rounded-full" referrerPolicy="no-referrer" />
+              ) : (
+                <span className="text-white font-bold text-sm">{initial}</span>
+              )}
             </button>
 
             <AnimatePresence>
@@ -98,11 +106,15 @@ export default function HeroSection() {
                 >
                   <div className="travelog-dropdown__header">
                     <div className="travelog-dropdown__avatar-lg">
-                      <img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80" alt="Avatar" />
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt="Avatar" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white font-bold text-lg">{initial}</div>
+                      )}
                     </div>
                     <div>
-                      <p className="travelog-dropdown__name">Quốc Khanh</p>
-                      <p className="travelog-dropdown__email">khanh@gmail.com</p>
+                      <p className="travelog-dropdown__name">{displayName}</p>
+                      <p className="travelog-dropdown__email">{email}</p>
                     </div>
                   </div>
                   <div className="travelog-dropdown__divider" />
@@ -113,7 +125,13 @@ export default function HeroSection() {
                     return (
                       <button
                         key={item.label}
-                        onClick={() => { navigate(item.path); setDropdownOpen(false) }}
+                        onClick={async () => {
+                        if (isLogout) {
+                          await signOut()
+                        }
+                        navigate(item.path)
+                        setDropdownOpen(false)
+                      }}
                         className={`travelog-dropdown__item ${isLogout ? 'travelog-dropdown__item--danger' : ''} ${isActive && !isLogout ? 'travelog-dropdown__item--active' : ''}`}
                       >
                         <Icon className="w-4 h-4" />

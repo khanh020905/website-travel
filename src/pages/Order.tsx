@@ -1,27 +1,47 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search } from 'lucide-react'
+import { Search, AlertTriangle } from 'lucide-react'
 import gsap from 'gsap'
+import UserAvatar, { useUserInfo } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
+import { supabase } from '../lib/supabase'
 
 export default function Order() {
+  const { displayName, email } = useUserInfo()
   const [orderCount, setOrderCount] = useState(0)
-  const maxOrders = 50
+  const [maxOrders, setMaxOrders] = useState(50)
+  const [exceeded, setExceeded] = useState(false)
   const progressRef = useRef<HTMLDivElement>(null)
   const counterRef = useRef<HTMLSpanElement>(null)
+
+  // Fetch max bookings from settings
+  useEffect(() => {
+    supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'max_tour_bookings')
+      .single()
+      .then(({ data }: { data: { value: string } | null }) => {
+        if (data?.value) setMaxOrders(parseInt(data.value, 10))
+      })
+  }, [])
 
   useEffect(() => {
     if (progressRef.current) {
       gsap.fromTo(progressRef.current, { width: '0%' }, { width: `${(orderCount / maxOrders) * 100}%`, duration: 0.8, ease: 'power2.out' })
     }
-  }, [orderCount])
+  }, [orderCount, maxOrders])
 
   const handleOrder = () => {
-    if (orderCount < maxOrders) {
-      setOrderCount((prev) => prev + 1)
-      if (counterRef.current) {
-        gsap.fromTo(counterRef.current, { scale: 1.3, color: '#F97316' }, { scale: 1, color: '#0F172A', duration: 0.4, ease: 'back.out(2)' })
-      }
+    if (orderCount >= maxOrders) {
+      setExceeded(true)
+      setTimeout(() => setExceeded(false), 3000)
+      return
+    }
+    setOrderCount((prev) => prev + 1)
+    setExceeded(false)
+    if (counterRef.current) {
+      gsap.fromTo(counterRef.current, { scale: 1.3, color: '#F97316' }, { scale: 1, color: '#0F172A', duration: 0.4, ease: 'back.out(2)' })
     }
   }
 
@@ -76,8 +96,14 @@ export default function Order() {
               <motion.div className="absolute inset-0 bg-gradient-to-r from-primary-light to-primary" initial={{ x: '-100%' }} whileHover={{ x: '0%' }} transition={{ duration: 0.3 }} />
             </motion.button>
             <AnimatePresence>
-              {orderCount > 0 && (
+              {orderCount > 0 && !exceeded && (
                 <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-center text-sm text-text-secondary mt-3">🎉 Đã đặt {orderCount} tour!</motion.p>
+              )}
+              {exceeded && (
+                <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
+                  <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <p className="text-red-600 text-sm font-semibold">Bạn đã đặt quá số lượng!</p>
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
@@ -112,8 +138,8 @@ export default function Order() {
               <input type="text" placeholder="Tìm kiếm tour..." className="pl-10 pr-4 py-2.5 bg-white border border-border rounded-xl text-sm w-48 lg:w-56 placeholder:text-text-muted" />
             </div>
             <div className="flex items-center gap-3 pl-4 border-l border-border">
-              <div><p className="text-sm font-semibold text-right">Quốc Khanh</p><p className="text-[11px] text-text-muted text-right">khanh@gmail.com</p></div>
-              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary/30"><img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80" alt="Avatar" className="w-full h-full object-cover" /></div>
+              <div><p className="text-sm font-semibold text-right">{displayName}</p><p className="text-[11px] text-text-muted text-right">{email}</p></div>
+              <UserAvatar size={40} borderClass="border-2 border-primary/30" />
             </div>
           </div>
         </div>
@@ -181,8 +207,14 @@ export default function Order() {
                 ĐẶT TOUR
               </motion.button>
               <AnimatePresence>
-                {orderCount > 0 && (
+                {orderCount > 0 && !exceeded && (
                   <motion.p initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-sm text-text-secondary mt-3">🎉 Đã đặt {orderCount} tour!</motion.p>
+                )}
+                {exceeded && (
+                  <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
+                    <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                    <p className="text-red-600 text-sm font-semibold">Bạn đã đặt quá số lượng!</p>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>

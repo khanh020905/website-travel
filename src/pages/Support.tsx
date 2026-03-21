@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { MessageCircle, Phone, Mail, Clock, ChevronRight, Headphones, Search } from 'lucide-react'
+import UserAvatar, { useUserInfo } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
 
 const faqItems = [
@@ -19,6 +20,8 @@ const stagger = { animate: { transition: { staggerChildren: 0.08 } } }
 const fadeUp = { initial: { opacity: 0, y: 15 }, animate: { opacity: 1, y: 0, transition: { duration: 0.35 } } }
 
 export default function Support() {
+  const { displayName, email } = useUserInfo()
+
   return (
     <PageTransition>
       {/* ===== MOBILE ===== */}
@@ -83,8 +86,8 @@ export default function Support() {
               <input type="text" placeholder="Tìm câu hỏi..." className="pl-10 pr-4 py-2.5 bg-white border border-border rounded-xl text-sm w-48 lg:w-56 placeholder:text-text-muted" />
             </div>
             <div className="flex items-center gap-3 pl-4 border-l border-border">
-              <div><p className="text-sm font-semibold text-right">Quốc Khanh</p><p className="text-[11px] text-text-muted text-right">khanh@gmail.com</p></div>
-              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary/30"><img src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80" alt="Avatar" className="w-full h-full object-cover" /></div>
+              <div><p className="text-sm font-semibold text-right">{displayName}</p><p className="text-[11px] text-text-muted text-right">{email}</p></div>
+              <UserAvatar size={40} borderClass="border-2 border-primary/30" />
             </div>
           </div>
         </div>

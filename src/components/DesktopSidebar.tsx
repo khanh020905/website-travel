@@ -13,6 +13,7 @@ import {
   Sparkles,
   LayoutDashboard,
 } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
 
 const mainMenu = [
   { path: '/home', icon: Compass, label: 'Khám phá' },
@@ -25,13 +26,18 @@ const mainMenu = [
 const secondaryMenu = [
   { path: '/admin', icon: LayoutDashboard, label: 'Admin' },
   { path: '/settings', icon: Settings, label: 'Cài đặt' },
-  { path: '/login', icon: LogOut, label: 'Đăng xuất' },
 ]
 
 export default function DesktopSidebar() {
   const location = useLocation()
   const navigate = useNavigate()
   const ringRef = useRef<SVGCircleElement>(null)
+  const { signOut } = useAuth()
+
+  const handleLogout = async () => {
+    await signOut()
+    navigate('/login')
+  }
 
   useEffect(() => {
     if (!ringRef.current) return
@@ -130,6 +136,11 @@ export default function DesktopSidebar() {
                 </motion.button>
               )
             })}
+            {/* Logout button */}
+            <motion.button whileHover={{ x: 2 }} whileTap={{ scale: 0.98 }} onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 cursor-pointer text-red-500 hover:text-red-600 hover:bg-red-50">
+              <LogOut className="w-[18px] h-[18px] flex-shrink-0" strokeWidth={1.8} />
+              <span className="text-sm">Đăng xuất</span>
+            </motion.button>
           </nav>
         </div>
       </div>
