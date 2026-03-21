@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { Eye, EyeOff, Mail, Lock, Plane, ChevronsRight, Loader2, User } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, Plane, ChevronsRight, Loader2, User, Ticket } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 
 // ─── Swipe-to-Submit Button ────────────────────────────
 function SwipeButton({ loading, label, onSwipeComplete }: {
@@ -106,6 +107,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
@@ -138,6 +140,27 @@ export default function Login() {
       return
     }
 
+    // Validate invite code for registration
+    if (mode === 'register') {
+      if (!inviteCode.trim()) {
+        setError('Vui lòng nhập mã mời')
+        return
+      }
+      const { data: codeData } = await supabase
+        .from('invite_codes')
+        .select('id, status')
+        .eq('code', inviteCode.trim().toUpperCase())
+        .single()
+      if (!codeData) {
+        setError('Mã mời không hợp lệ')
+        return
+      }
+      if (codeData.status !== 'active') {
+        setError('Mã mời đã được sử dụng hoặc đã hủy')
+        return
+      }
+    }
+
     setLoading(true)
 
     if (mode === 'login') {
@@ -154,6 +177,12 @@ export default function Login() {
         setError(error)
         setLoading(false)
       } else {
+        // Mark invite code as used
+        const { data: userData } = await supabase.auth.getUser()
+        await supabase
+          .from('invite_codes')
+          .update({ status: 'used', used_by: userData?.user?.id || null, used_at: new Date().toISOString() })
+          .eq('code', inviteCode.trim().toUpperCase())
         setSuccess('Đăng ký thành công! Kiểm tra email để xác nhận tài khoản.')
         setLoading(false)
       }
@@ -171,6 +200,7 @@ export default function Login() {
     setPassword('')
     setConfirmPassword('')
     setDisplayName('')
+    setInviteCode('')
   }
 
   return (
@@ -359,6 +389,31 @@ export default function Login() {
                       >
                         {showConfirmPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
                       </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Invite Code (register only) - DESKTOP */}
+              <AnimatePresence>
+                {mode === 'register' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <label className="block text-gray-700 text-sm font-medium mb-1.5"> Mã mời</label>
+                    <div className="relative">
+                      <Ticket className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Nhập mã mời 6 ký tự"
+                        value={inviteCode}
+                        onChange={(e) => setInviteCode(e.target.value.toUpperCase().slice(0, 6))}
+                        maxLength={6}
+                        className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm placeholder:text-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all duration-300 font-mono tracking-[0.15em] uppercase"
+                      />
                     </div>
                   </motion.div>
                 )}
@@ -609,6 +664,31 @@ export default function Login() {
                       >
                         {showConfirmPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
                       </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Invite Code (register only) - MOBILE */}
+              <AnimatePresence>
+                {mode === 'register' && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <label className="block text-text-primary text-sm font-semibold mb-1.5">Mã mời</label>
+                    <div className="relative">
+                      <Ticket className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-text-muted" />
+                      <input
+                        type="text"
+                        placeholder="Nhập mã mời 6 ký tự"
+                        value={inviteCode}
+                        onChange={(e) => setInviteCode(e.target.value.toUpperCase().slice(0, 6))}
+                        maxLength={6}
+                        className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm placeholder:text-text-muted focus:border-primary focus:bg-white transition-all duration-300 font-mono tracking-[0.15em] uppercase"
+                      />
                     </div>
                   </motion.div>
                 )}

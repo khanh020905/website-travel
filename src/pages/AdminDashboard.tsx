@@ -1,10 +1,12 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import gsap from 'gsap'
-import { Calendar, DollarSign, Users, Eye, MoreHorizontal, RefreshCw, BarChart3, PieChart, Shield, Settings, Bell, ArrowUpRight, ArrowDownRight, Search, Filter } from 'lucide-react'
+import { Calendar, DollarSign, Users, Eye, MoreHorizontal, RefreshCw, BarChart3, PieChart, Shield, Settings, Bell, ArrowUpRight, ArrowDownRight, Search, Filter, Minus, Plus, Check, X, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PageTransition from '../components/PageTransition'
 import AdminChatSection from '../components/AdminChatSection'
+import AdminInviteSection from '../components/AdminInviteSection'
+import AdminTransactionHistory from '../components/AdminTransactionHistory'
 
 const defaultStats = [
   { label: 'Tổng đặt chỗ', value: '0', change: 'Hiện đang trống', up: true, icon: Calendar, color: 'bg-blue-500', lightColor: 'bg-blue-50' },
@@ -38,10 +40,28 @@ interface Profile {
   avatar_url: string | null
   provider: string
   role: string
+  balance: number
   created_at: string
 }
 
-function UsersList({ profiles, loading, error, onRetry, compact = false }: { profiles: Profile[]; loading: boolean; error: string | null; onRetry: () => void; compact?: boolean }) {
+function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdateBalance }: { profiles: Profile[]; loading: boolean; error: string | null; onRetry: () => void; compact?: boolean; onUpdateBalance?: (id: string, balance: number) => Promise<void> }) {
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const startEdit = (p: Profile) => {
+    setEditingId(p.id)
+    setEditValue((p.balance || 0).toFixed(2))
+  }
+
+  const saveBalance = async (id: string) => {
+    if (!onUpdateBalance) return
+    setSaving(true)
+    await onUpdateBalance(id, parseFloat(editValue) || 0)
+    setSaving(false)
+    setEditingId(null)
+  }
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -97,6 +117,31 @@ function UsersList({ profiles, loading, error, onRetry, compact = false }: { pro
             <p className="font-semibold text-sm truncate">{p.display_name || 'Hiện đang trống'}</p>
             <p className="text-text-muted text-[11px] truncate">{p.email || 'Hiện đang trống'}</p>
           </div>
+
+          {/* Balance display/edit */}
+          <div className="flex-shrink-0">
+            {editingId === p.id ? (
+              <div className="flex items-center gap-1">
+                <button onClick={() => setEditValue((Math.max(0, parseFloat(editValue) - 1)).toFixed(2))} className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200"><Minus className="w-3 h-3" /></button>
+                <input
+                  type="number"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  className="w-16 text-center text-xs font-bold border border-primary rounded-md px-1 py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  step="0.5"
+                  min="0"
+                />
+                <button onClick={() => setEditValue((parseFloat(editValue) + 1).toFixed(2))} className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200"><Plus className="w-3 h-3" /></button>
+                <button onClick={() => saveBalance(p.id)} disabled={saving} className="w-6 h-6 rounded-md bg-green-500 text-white flex items-center justify-center cursor-pointer hover:bg-green-600">{saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}</button>
+                <button onClick={() => setEditingId(null)} className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center cursor-pointer hover:bg-gray-200"><X className="w-3 h-3" /></button>
+              </div>
+            ) : (
+              <button onClick={() => startEdit(p)} className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-pointer hover:bg-emerald-100 transition-colors" title="Số dư">
+                <DollarSign className="w-3 h-3" />{(p.balance || 0).toFixed(2)}
+              </button>
+            )}
+          </div>
+
           <div className="text-right flex-shrink-0">
             <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
               p.provider === 'google' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-600'
@@ -232,6 +277,11 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => { fetchProfiles() }, [])
+
+  const handleUpdateBalance = async (id: string, balance: number) => {
+    await supabase.from('profiles').update({ balance }).eq('id', id)
+    setProfiles((prev) => prev.map((p) => p.id === id ? { ...p, balance } : p))
+  }
 
   // Build stats with real user count
   const stats = defaultStats.map((s) => {
@@ -379,13 +429,23 @@ export default function AdminDashboard() {
           {/* User list - Mobile */}
           <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2"><Users className="w-4 h-4 text-purple-500" /> Người dùng {!profilesLoading && <span className="text-text-muted font-normal">({profiles.length})</span>}</h3>
           <div className="bg-white rounded-2xl p-4 border border-border/50 shadow-sm mb-6">
-            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} compact />
+            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} onUpdateBalance={handleUpdateBalance} compact />
           </div>
 
           {/* Chat Management - Mobile */}
           <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2">💬 Tin nhắn</h3>
           <div className="mb-6">
             <AdminChatSection />
+          </div>
+
+          {/* Invite Codes - Mobile */}
+          <div className="mb-6">
+            <AdminInviteSection />
+          </div>
+
+          {/* Transaction History - Mobile */}
+          <div className="mb-6">
+            <AdminTransactionHistory />
           </div>
         </div>
       </div>
@@ -532,13 +592,23 @@ export default function AdminDashboard() {
             <button onClick={fetchProfiles} className="flex items-center gap-1.5 text-primary text-xs font-semibold cursor-pointer hover:underline"><RefreshCw className="w-3.5 h-3.5" /> Làm mới</button>
           </div>
           <div className="px-6 pb-6">
-            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} />
+            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} onUpdateBalance={handleUpdateBalance} />
           </div>
         </motion.div>
 
         {/* Chat Management - Desktop */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }} className="mt-6">
           <AdminChatSection />
+        </motion.div>
+
+        {/* Invite Codes - Desktop */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="mt-6">
+          <AdminInviteSection />
+        </motion.div>
+
+        {/* Transaction History - Desktop */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }} className="mt-6">
+          <AdminTransactionHistory />
         </motion.div>
       </div>
     </PageTransition>

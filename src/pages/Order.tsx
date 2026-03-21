@@ -5,14 +5,18 @@ import gsap from 'gsap'
 import UserAvatar, { useUserInfo } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
 const COST_PER_CLICK = 0.6 // $0.60 per booking
 
 export default function Order() {
   const { displayName, email } = useUserInfo()
+  const { user } = useAuth()
   const [orderCount, setOrderCount] = useState(0)
   const [maxPrice, setMaxPrice] = useState(40)
+  const [balance, setBalance] = useState(0)
   const [exceeded, setExceeded] = useState(false)
+  const [insufficientBalance, setInsufficientBalance] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const progressRef = useRef<HTMLDivElement>(null)
   const counterRef = useRef<HTMLSpanElement>(null)
@@ -23,7 +27,7 @@ export default function Order() {
   const progressPct = Math.min(100, (totalSpent / maxPrice) * 100)
   const remaining = Math.max(0, maxPrice - totalSpent)
 
-  // Fetch max price from admin settings
+  // Fetch max price + user balance
   useEffect(() => {
     supabase
       .from('app_settings')
@@ -33,7 +37,18 @@ export default function Order() {
       .then(({ data }: { data: { value: string } | null }) => {
         if (data?.value) setMaxPrice(parseFloat(data.value))
       })
-  }, [])
+
+    if (user) {
+      supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          if (data?.balance != null) setBalance(parseFloat(data.balance))
+        })
+    }
+  }, [user])
 
   useEffect(() => {
     if (progressRef.current) {
@@ -47,12 +62,31 @@ export default function Order() {
       setTimeout(() => setExceeded(false), 3000)
       return
     }
+    if (balance < costPerClick) {
+      setInsufficientBalance(true)
+      setTimeout(() => setInsufficientBalance(false), 3000)
+      return
+    }
     setShowConfirm(true)
   }
 
-  const handleConfirmOrder = () => {
+  const handleConfirmOrder = async () => {
+    if (!user) return
+    const newBalance = Math.max(0, balance - costPerClick)
+    // Update balance
+    await supabase.from('profiles').update({ balance: newBalance }).eq('id', user.id)
+    // Log transaction
+    await supabase.from('transactions').insert({
+      user_id: user.id,
+      amount: -costPerClick,
+      type: 'booking',
+      description: `Đặt tour #${orderCount + 1}`,
+      balance_after: newBalance,
+    })
+    setBalance(newBalance)
     setOrderCount((prev) => prev + 1)
     setExceeded(false)
+    setInsufficientBalance(false)
     setShowConfirm(false)
     if (counterRef.current) {
       gsap.fromTo(counterRef.current, { scale: 1.3, color: '#22c55e' }, { scale: 1, color: '#0F172A', duration: 0.4, ease: 'back.out(2)' })
@@ -86,7 +120,7 @@ export default function Order() {
         <div className="px-5 pt-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="grid grid-cols-3 gap-px bg-border rounded-2xl overflow-hidden shadow-sm">
             {[
-              { label: 'Mỗi lần đặt', value: `+$${costPerClick.toFixed(2)}` },
+              { label: 'Số dư', value: `$${balance.toFixed(2)}` },
               { label: 'Tỷ lệ', value: '+0.6%' },
               { label: 'Tổng chi', value: `$${totalSpent.toFixed(2)}` },
             ].map((stat) => (
@@ -144,6 +178,12 @@ export default function Order() {
                 <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
                   <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
                   <p className="text-red-600 text-sm font-semibold">Đã đạt tối đa ${maxPrice.toFixed(2)}!</p>
+                </motion.div>
+              )}
+              {insufficientBalance && (
+                <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                  <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                  <p className="text-orange-600 text-sm font-semibold">Số dư bạn không đủ! (cần ${costPerClick.toFixed(2)})</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -204,7 +244,7 @@ export default function Order() {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
               {[
-                { label: 'Mỗi lần đặt', value: `+$${costPerClick.toFixed(2)}`, icon: '💰' },
+                { label: 'Số dư', value: `$${balance.toFixed(2)}`, icon: '💰' },
                 { label: 'Tỷ lệ tăng', value: '+0.6% / lần', icon: '📊' },
                 { label: 'Tổng chi', value: `$${totalSpent.toFixed(2)}`, icon: '💎' },
               ].map((stat) => (
@@ -282,6 +322,12 @@ export default function Order() {
                   <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
                     <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
                     <p className="text-red-600 text-sm font-semibold">Đã đạt tối đa ${maxPrice.toFixed(2)}!</p>
+                  </motion.div>
+                )}
+                {insufficientBalance && (
+                  <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                    <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                    <p className="text-orange-600 text-sm font-semibold">Số dư bạn không đủ! (cần ${costPerClick.toFixed(2)})</p>
                   </motion.div>
                 )}
               </AnimatePresence>
