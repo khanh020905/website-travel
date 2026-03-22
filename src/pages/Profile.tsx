@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Wallet, History, Settings, MapPin, Lock, Globe, LogOut, ChevronRight, Shield, Search, Edit3, LayoutDashboard, ArrowDownLeft, DollarSign, RefreshCw, Loader2, User, Phone, Mail, MapPinned, Save, X, Check } from 'lucide-react'
+import { Wallet, History, Settings, Lock, Globe, LogOut, ChevronRight, Search, Edit3, LayoutDashboard, ArrowDownLeft, DollarSign, RefreshCw, Loader2, User, Phone, Mail, MapPinned, Save, X, Check, Eye, EyeOff } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useLanguage } from '../contexts/LanguageContext'
 import UserAvatar, { useUserInfo, useUserRole } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
 import ChatWidget from '../components/ChatWidget'
@@ -30,12 +31,7 @@ const menuItems = [
   { icon: History, label: 'Lịch sử giao dịch', desc: 'Xem các giao dịch gần đây', color: 'text-blue-500', bgColor: 'bg-blue-50', action: 'history' },
 ]
 
-const settingsItems = [
-  { icon: MapPin, label: 'Địa chỉ ví', desc: 'Wallet address' },
-  { icon: Lock, label: 'Thay đổi mật khẩu', desc: 'Đổi mật khẩu' },
-  { icon: Globe, label: 'Tiếng Việt', desc: 'Ngôn ngữ' },
-  { icon: Shield, label: 'Quyền riêng tư', desc: 'Cài đặt bảo mật' },
-]
+
 
 const stagger = { animate: { transition: { staggerChildren: 0.06 } } }
 const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, transition: { duration: 0.3 } } }
@@ -45,6 +41,7 @@ export default function Profile() {
   const { signOut, user } = useAuth()
   const { displayName, email } = useUserInfo()
   const { isAdmin } = useUserRole()
+  const { lang, setLang, t } = useLanguage()
   const [balance, setBalance] = useState(0)
   const [chatOpen, setChatOpen] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -108,6 +105,33 @@ export default function Profile() {
     setEditProfileInfo({ ...profileInfo })
     setIsEditingProfile(false)
   }
+
+  // Password change state
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showNewPw, setShowNewPw] = useState(false)
+  const [showConfirmPw, setShowConfirmPw] = useState(false)
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwError, setPwError] = useState<string | null>(null)
+  const [pwSuccess, setPwSuccess] = useState(false)
+
+  const handleChangePassword = async () => {
+    setPwError(null)
+    if (!newPassword || !confirmPassword) { setPwError(t('Vui lòng điền đầy đủ thông tin', 'Please fill in all fields')); return }
+    if (newPassword.length < 6) { setPwError(t('Mật khẩu phải có ít nhất 6 ký tự', 'Password must be at least 6 characters')); return }
+    if (newPassword !== confirmPassword) { setPwError(t('Mật khẩu xác nhận không khớp', 'Passwords do not match')); return }
+    setPwLoading(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setPwLoading(false)
+    if (error) { setPwError(error.message) } else {
+      setPwSuccess(true)
+      setTimeout(() => { setShowPasswordModal(false); setPwSuccess(false); setNewPassword(''); setConfirmPassword('') }, 1500)
+    }
+  }
+
+  // Language dropdown
+  const [showLangDropdown, setShowLangDropdown] = useState(false)
 
   const fetchTransactions = async () => {
     if (!user) return
@@ -334,19 +358,36 @@ export default function Profile() {
             </motion.div>
           )}
 
-          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Cài đặt</h3>
+          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">{t('Cài đặt', 'Settings')}</h3>
           <div className="bg-white rounded-2xl shadow-sm border border-border/50 overflow-hidden divide-y divide-border/50 mb-6">
-            {settingsItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <button key={item.label} className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 cursor-pointer">
-                  <Icon className="w-4.5 h-4.5 text-text-secondary" />
-                  <div className="flex-1 text-left"><p className="font-medium text-sm">{item.label}</p></div>
-                  <span className="text-text-muted text-xs">{item.desc}</span>
-                  <ChevronRight className="w-3.5 h-3.5 text-text-muted ml-1" />
-                </button>
-              )
-            })}
+            {/* Thay đổi mật khẩu */}
+            <button onClick={() => setShowPasswordModal(true)} className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 cursor-pointer">
+              <Lock className="w-4.5 h-4.5 text-text-secondary" />
+              <div className="flex-1 text-left"><p className="font-medium text-sm">{t('Thay đổi mật khẩu', 'Change Password')}</p></div>
+              <span className="text-text-muted text-xs">{t('Đổi mật khẩu', 'Change password')}</span>
+              <ChevronRight className="w-3.5 h-3.5 text-text-muted ml-1" />
+            </button>
+            {/* Ngôn ngữ */}
+            <div className="relative">
+              <button onClick={() => setShowLangDropdown(!showLangDropdown)} className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 cursor-pointer">
+                <Globe className="w-4.5 h-4.5 text-text-secondary" />
+                <div className="flex-1 text-left"><p className="font-medium text-sm">{lang === 'vi' ? 'Tiếng Việt' : 'English'}</p></div>
+                <span className="text-text-muted text-xs">{t('Ngôn ngữ', 'Language')}</span>
+                <ChevronRight className={`w-3.5 h-3.5 text-text-muted ml-1 transition-transform ${showLangDropdown ? 'rotate-90' : ''}`} />
+              </button>
+              <AnimatePresence>
+                {showLangDropdown && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden bg-gray-50">
+                    <button onClick={() => { setLang('vi'); setShowLangDropdown(false) }} className={`w-full flex items-center gap-3 px-8 py-3 text-sm cursor-pointer hover:bg-gray-100 ${lang === 'vi' ? 'text-primary font-semibold' : 'text-text-secondary'}`}>
+                      🇻🇳 Tiếng Việt {lang === 'vi' && <Check className="w-3.5 h-3.5 ml-auto" />}
+                    </button>
+                    <button onClick={() => { setLang('en'); setShowLangDropdown(false) }} className={`w-full flex items-center gap-3 px-8 py-3 text-sm cursor-pointer hover:bg-gray-100 ${lang === 'en' ? 'text-primary font-semibold' : 'text-text-secondary'}`}>
+                      🇬🇧 English {lang === 'en' && <Check className="w-3.5 h-3.5 ml-auto" />}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {isAdmin && (
@@ -567,19 +608,36 @@ export default function Profile() {
           <div className="space-y-6">
             {/* Settings */}
             <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
-              <div className="px-5 pt-5 pb-3"><h3 className="font-bold text-base">Cài đặt</h3></div>
+              <div className="px-5 pt-5 pb-3"><h3 className="font-bold text-base">{t('Cài đặt', 'Settings')}</h3></div>
               <div className="divide-y divide-border/50">
-                {settingsItems.map((item) => {
-                  const Icon = item.icon
-                  return (
-                    <motion.button key={item.label} whileHover={{ x: 3 }} className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface-dim transition-colors cursor-pointer">
-                      <Icon className="w-4.5 h-4.5 text-text-secondary" />
-                      <div className="flex-1 text-left"><p className="font-medium text-sm">{item.label}</p></div>
-                      <span className="text-text-muted text-xs">{item.desc}</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-text-muted ml-1" />
-                    </motion.button>
-                  )
-                })}
+                {/* Thay đổi mật khẩu */}
+                <motion.button whileHover={{ x: 3 }} onClick={() => setShowPasswordModal(true)} className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface-dim transition-colors cursor-pointer">
+                  <Lock className="w-4.5 h-4.5 text-text-secondary" />
+                  <div className="flex-1 text-left"><p className="font-medium text-sm">{t('Thay đổi mật khẩu', 'Change Password')}</p></div>
+                  <span className="text-text-muted text-xs">{t('Đổi mật khẩu', 'Change password')}</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-text-muted ml-1" />
+                </motion.button>
+                {/* Ngôn ngữ */}
+                <div className="relative">
+                  <motion.button whileHover={{ x: 3 }} onClick={() => setShowLangDropdown(!showLangDropdown)} className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-surface-dim transition-colors cursor-pointer">
+                    <Globe className="w-4.5 h-4.5 text-text-secondary" />
+                    <div className="flex-1 text-left"><p className="font-medium text-sm">{lang === 'vi' ? 'Tiếng Việt' : 'English'}</p></div>
+                    <span className="text-text-muted text-xs">{t('Ngôn ngữ', 'Language')}</span>
+                    <ChevronRight className={`w-3.5 h-3.5 text-text-muted ml-1 transition-transform ${showLangDropdown ? 'rotate-90' : ''}`} />
+                  </motion.button>
+                  <AnimatePresence>
+                    {showLangDropdown && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden bg-gray-50">
+                        <button onClick={() => { setLang('vi'); setShowLangDropdown(false) }} className={`w-full flex items-center gap-3 px-8 py-3 text-sm cursor-pointer hover:bg-gray-100 ${lang === 'vi' ? 'text-primary font-semibold' : 'text-text-secondary'}`}>
+                          🇻🇳 Tiếng Việt {lang === 'vi' && <Check className="w-3.5 h-3.5 ml-auto" />}
+                        </button>
+                        <button onClick={() => { setLang('en'); setShowLangDropdown(false) }} className={`w-full flex items-center gap-3 px-8 py-3 text-sm cursor-pointer hover:bg-gray-100 ${lang === 'en' ? 'text-primary font-semibold' : 'text-text-secondary'}`}>
+                          🇬🇧 English {lang === 'en' && <Check className="w-3.5 h-3.5 ml-auto" />}
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
 
@@ -604,6 +662,57 @@ export default function Profile() {
         </div>
       </div>
       <ChatWidget open={chatOpen} onClose={() => setChatOpen(false)} initialMessage={WITHDRAW_MSG} />
+
+      {/* Password Change Modal */}
+      <AnimatePresence>
+        {showPasswordModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setShowPasswordModal(false)}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
+              {pwSuccess ? (
+                <div className="text-center py-6">
+                  <Check className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <p className="font-bold text-lg">{t('Đổi mật khẩu thành công!', 'Password changed successfully!')}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-5">
+                    <h3 className="font-bold text-lg flex items-center gap-2"><Lock className="w-5 h-5 text-primary" /> {t('Đổi mật khẩu', 'Change Password')}</h3>
+                    <button onClick={() => setShowPasswordModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 cursor-pointer"><X className="w-4.5 h-4.5" /></button>
+                  </div>
+
+                  {pwError && <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 mb-4">{pwError}</div>}
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">{t('Mật khẩu mới', 'New Password')}</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                        <input type={showNewPw ? 'text' : 'password'} value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder={t('Nhập mật khẩu mới', 'Enter new password')} className="w-full pl-10 pr-11 py-3 bg-surface-dim border border-border rounded-xl text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                        <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary cursor-pointer">
+                          {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1.5">{t('Xác nhận mật khẩu', 'Confirm Password')}</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                        <input type={showConfirmPw ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder={t('Nhập lại mật khẩu', 'Re-enter password')} className="w-full pl-10 pr-11 py-3 bg-surface-dim border border-border rounded-xl text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                        <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary cursor-pointer">
+                          {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <motion.button whileTap={{ scale: 0.97 }} onClick={handleChangePassword} disabled={pwLoading} className="w-full py-3 bg-gradient-to-r from-primary to-primary-dark text-white font-bold text-sm rounded-xl shadow-md cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2">
+                      {pwLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : t('Đổi mật khẩu', 'Change Password')}
+                    </motion.button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </PageTransition>
   )
 }
