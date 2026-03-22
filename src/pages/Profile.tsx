@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { Wallet, History, Settings, MapPin, Lock, Globe, LogOut, ChevronRight, Shield, Search, Edit3, LayoutDashboard, ArrowDownLeft, DollarSign, RefreshCw, Loader2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Wallet, History, Settings, MapPin, Lock, Globe, LogOut, ChevronRight, Shield, Search, Edit3, LayoutDashboard, ArrowDownLeft, DollarSign, RefreshCw, Loader2, User, Phone, Mail, MapPinned, Save, X, Check } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import UserAvatar, { useUserInfo, useUserRole } from '../components/UserAvatar'
@@ -16,6 +16,13 @@ interface Transaction {
   description: string
   balance_after: number
   created_at: string
+}
+
+interface ProfileInfo {
+  full_name: string
+  phone: string
+  wallet_address: string
+  detailed_address: string
 }
 
 const menuItems = [
@@ -45,18 +52,62 @@ export default function Profile() {
   const [txLoading, setTxLoading] = useState(false)
   const WITHDRAW_MSG = 'Tôi đang muốn rút tiền bạn có thể hỗ trợ tôi được không'
 
+  // Profile info state
+  const [profileInfo, setProfileInfo] = useState<ProfileInfo>({ full_name: '', phone: '', wallet_address: '', detailed_address: '' })
+  const [editProfileInfo, setEditProfileInfo] = useState<ProfileInfo>({ full_name: '', phone: '', wallet_address: '', detailed_address: '' })
+  const [showProfileSection, setShowProfileSection] = useState(false)
+  const [isEditingProfile, setIsEditingProfile] = useState(false)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
+
   useEffect(() => {
     if (user) {
       supabase
         .from('profiles')
-        .select('balance')
+        .select('balance, full_name, phone, wallet_address, detailed_address')
         .eq('id', user.id)
         .single()
         .then(({ data }) => {
           if (data?.balance != null) setBalance(parseFloat(data.balance))
+          if (data) {
+            const info: ProfileInfo = {
+              full_name: data.full_name || '',
+              phone: data.phone || '',
+              wallet_address: data.wallet_address || '',
+              detailed_address: data.detailed_address || '',
+            }
+            setProfileInfo(info)
+            setEditProfileInfo(info)
+          }
         })
     }
   }, [user])
+
+  const handleSaveProfile = async () => {
+    if (!user) return
+    setProfileSaving(true)
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: editProfileInfo.full_name,
+        phone: editProfileInfo.phone,
+        wallet_address: editProfileInfo.wallet_address,
+        detailed_address: editProfileInfo.detailed_address,
+      })
+      .eq('id', user.id)
+    setProfileSaving(false)
+    if (!error) {
+      setProfileInfo({ ...editProfileInfo })
+      setIsEditingProfile(false)
+      setProfileSaved(true)
+      setTimeout(() => setProfileSaved(false), 2000)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setEditProfileInfo({ ...profileInfo })
+    setIsEditingProfile(false)
+  }
 
   const fetchTransactions = async () => {
     if (!user) return
@@ -127,6 +178,99 @@ export default function Profile() {
         </div>
 
         <div className="px-5 pt-5">
+          {/* Hồ sơ section */}
+          <motion.div variants={fadeUp} initial="initial" animate="animate" className="mb-4">
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setShowProfileSection(!showProfileSection)}
+              className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm border border-border/50 active:bg-gray-50 cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
+                <User className="w-5 h-5 text-orange-500" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-semibold text-sm">Hồ sơ</p>
+                <p className="text-text-muted text-xs">Thông tin cá nhân</p>
+              </div>
+              <ChevronRight className={`w-4 h-4 text-text-muted transition-transform ${showProfileSection ? 'rotate-90' : ''}`} />
+            </motion.button>
+          </motion.div>
+
+          <AnimatePresence>
+            {showProfileSection && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-4 overflow-hidden">
+                <div className="bg-white rounded-2xl border border-border/50 shadow-sm p-4 space-y-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="font-bold text-sm flex items-center gap-2">
+                      <User className="w-4 h-4 text-orange-500" /> Thông tin hồ sơ
+                      {profileSaved && <span className="text-[10px] font-semibold bg-green-100 text-green-600 px-2 py-0.5 rounded-full flex items-center gap-0.5"><Check className="w-2.5 h-2.5" /> Đã lưu</span>}
+                    </h3>
+                    {!isEditingProfile ? (
+                      <button onClick={() => setIsEditingProfile(true)} className="flex items-center gap-1 text-primary text-[10px] font-semibold cursor-pointer hover:underline">
+                        <Edit3 className="w-3 h-3" /> Chỉnh sửa
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button onClick={handleCancelEdit} className="flex items-center gap-1 text-red-500 text-[10px] font-semibold cursor-pointer hover:underline">
+                          <X className="w-3 h-3" /> Hủy
+                        </button>
+                        <button onClick={handleSaveProfile} disabled={profileSaving} className="flex items-center gap-1 text-green-600 text-[10px] font-semibold cursor-pointer hover:underline disabled:opacity-50">
+                          {profileSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Lưu
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Họ và tên */}
+                  <div>
+                    <label className="text-[10px] text-text-muted font-medium flex items-center gap-1 mb-1"><User className="w-3 h-3" /> Họ và tên</label>
+                    {isEditingProfile ? (
+                      <input type="text" value={editProfileInfo.full_name} onChange={e => setEditProfileInfo({ ...editProfileInfo, full_name: e.target.value })} placeholder="Nhập họ và tên" className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                    ) : (
+                      <p className="text-sm font-medium px-3 py-2 bg-surface-dim rounded-lg">{profileInfo.full_name || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                    )}
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="text-[10px] text-text-muted font-medium flex items-center gap-1 mb-1"><Mail className="w-3 h-3" /> Email</label>
+                    <p className="text-sm font-medium px-3 py-2 bg-surface-dim rounded-lg text-text-muted">{email}</p>
+                  </div>
+
+                  {/* Số điện thoại */}
+                  <div>
+                    <label className="text-[10px] text-text-muted font-medium flex items-center gap-1 mb-1"><Phone className="w-3 h-3" /> Số điện thoại</label>
+                    {isEditingProfile ? (
+                      <input type="tel" value={editProfileInfo.phone} onChange={e => setEditProfileInfo({ ...editProfileInfo, phone: e.target.value })} placeholder="Nhập số điện thoại" className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                    ) : (
+                      <p className="text-sm font-medium px-3 py-2 bg-surface-dim rounded-lg">{profileInfo.phone || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                    )}
+                  </div>
+
+                  {/* Địa chỉ ví */}
+                  <div>
+                    <label className="text-[10px] text-text-muted font-medium flex items-center gap-1 mb-1"><Wallet className="w-3 h-3" /> Địa chỉ ví</label>
+                    {isEditingProfile ? (
+                      <input type="text" value={editProfileInfo.wallet_address} onChange={e => setEditProfileInfo({ ...editProfileInfo, wallet_address: e.target.value })} placeholder="Nhập địa chỉ ví" className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                    ) : (
+                      <p className="text-sm font-medium px-3 py-2 bg-surface-dim rounded-lg truncate">{profileInfo.wallet_address || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                    )}
+                  </div>
+
+                  {/* Địa chỉ chi tiết */}
+                  <div>
+                    <label className="text-[10px] text-text-muted font-medium flex items-center gap-1 mb-1"><MapPinned className="w-3 h-3" /> Địa chỉ chi tiết</label>
+                    {isEditingProfile ? (
+                      <textarea value={editProfileInfo.detailed_address} onChange={e => setEditProfileInfo({ ...editProfileInfo, detailed_address: e.target.value })} placeholder="Nhập địa chỉ chi tiết" rows={2} className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none" />
+                    ) : (
+                      <p className="text-sm font-medium px-3 py-2 bg-surface-dim rounded-lg">{profileInfo.detailed_address || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-2 mb-6">
             {menuItems.map((item) => {
               const Icon = item.icon
@@ -275,6 +419,78 @@ export default function Profile() {
               <div className="flex items-center justify-between">
                 <div><p className="text-white/70 text-sm font-medium">Số dư khả dụng</p><p className="text-3xl font-black mt-1">${balance.toFixed(2)}</p></div>
                 <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleWithdraw} className="px-6 py-3 bg-white text-primary font-bold text-sm rounded-xl shadow-md cursor-pointer">Rút tiền</motion.button>
+              </div>
+            </motion.div>
+
+            {/* Hồ sơ - Profile Info */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-white rounded-2xl p-6 border border-border/50 shadow-sm">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <User className="w-5 h-5 text-orange-500" /> Hồ sơ
+                  {profileSaved && <span className="text-xs font-semibold bg-green-100 text-green-600 px-2 py-0.5 rounded-full flex items-center gap-1"><Check className="w-3 h-3" /> Đã lưu</span>}
+                </h3>
+                {!isEditingProfile ? (
+                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setIsEditingProfile(true)} className="flex items-center gap-1.5 text-primary text-xs font-semibold cursor-pointer hover:underline px-3 py-1.5 bg-primary-50 rounded-lg">
+                    <Edit3 className="w-3.5 h-3.5" /> Chỉnh sửa
+                  </motion.button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleCancelEdit} className="flex items-center gap-1.5 text-red-500 text-xs font-semibold cursor-pointer px-3 py-1.5 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+                      <X className="w-3.5 h-3.5" /> Hủy
+                    </motion.button>
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleSaveProfile} disabled={profileSaving} className="flex items-center gap-1.5 text-white text-xs font-semibold cursor-pointer px-4 py-1.5 bg-green-500 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50">
+                      {profileSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Lưu
+                    </motion.button>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* Họ và tên */}
+                <div>
+                  <label className="text-xs text-text-muted font-medium flex items-center gap-1.5 mb-1.5"><User className="w-3.5 h-3.5" /> Họ và tên</label>
+                  {isEditingProfile ? (
+                    <input type="text" value={editProfileInfo.full_name} onChange={e => setEditProfileInfo({ ...editProfileInfo, full_name: e.target.value })} placeholder="Nhập họ và tên" className="w-full px-3.5 py-2.5 bg-surface-dim border border-border rounded-xl text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
+                  ) : (
+                    <p className="text-sm font-medium px-3.5 py-2.5 bg-surface-dim rounded-xl">{profileInfo.full_name || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="text-xs text-text-muted font-medium flex items-center gap-1.5 mb-1.5"><Mail className="w-3.5 h-3.5" /> Email</label>
+                  <p className="text-sm font-medium px-3.5 py-2.5 bg-surface-dim rounded-xl text-text-muted">{email}</p>
+                </div>
+
+                {/* Số điện thoại */}
+                <div>
+                  <label className="text-xs text-text-muted font-medium flex items-center gap-1.5 mb-1.5"><Phone className="w-3.5 h-3.5" /> Số điện thoại</label>
+                  {isEditingProfile ? (
+                    <input type="tel" value={editProfileInfo.phone} onChange={e => setEditProfileInfo({ ...editProfileInfo, phone: e.target.value })} placeholder="Nhập số điện thoại" className="w-full px-3.5 py-2.5 bg-surface-dim border border-border rounded-xl text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
+                  ) : (
+                    <p className="text-sm font-medium px-3.5 py-2.5 bg-surface-dim rounded-xl">{profileInfo.phone || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                  )}
+                </div>
+
+                {/* Địa chỉ ví */}
+                <div>
+                  <label className="text-xs text-text-muted font-medium flex items-center gap-1.5 mb-1.5"><Wallet className="w-3.5 h-3.5" /> Địa chỉ ví</label>
+                  {isEditingProfile ? (
+                    <input type="text" value={editProfileInfo.wallet_address} onChange={e => setEditProfileInfo({ ...editProfileInfo, wallet_address: e.target.value })} placeholder="Nhập địa chỉ ví" className="w-full px-3.5 py-2.5 bg-surface-dim border border-border rounded-xl text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
+                  ) : (
+                    <p className="text-sm font-medium px-3.5 py-2.5 bg-surface-dim rounded-xl truncate">{profileInfo.wallet_address || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                  )}
+                </div>
+
+                {/* Địa chỉ chi tiết - full width */}
+                <div className="col-span-2">
+                  <label className="text-xs text-text-muted font-medium flex items-center gap-1.5 mb-1.5"><MapPinned className="w-3.5 h-3.5" /> Địa chỉ chi tiết</label>
+                  {isEditingProfile ? (
+                    <textarea value={editProfileInfo.detailed_address} onChange={e => setEditProfileInfo({ ...editProfileInfo, detailed_address: e.target.value })} placeholder="Nhập địa chỉ chi tiết" rows={2} className="w-full px-3.5 py-2.5 bg-surface-dim border border-border rounded-xl text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all resize-none" />
+                  ) : (
+                    <p className="text-sm font-medium px-3.5 py-2.5 bg-surface-dim rounded-xl">{profileInfo.detailed_address || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                  )}
+                </div>
               </div>
             </motion.div>
 
