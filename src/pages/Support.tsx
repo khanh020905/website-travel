@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { MessageCircle, Clock, ChevronRight, Headphones, Search, Landmark, Save, Loader2, Check, X } from 'lucide-react'
+import { useState } from 'react'
+import { motion } from 'framer-motion'
+import { MessageCircle, Clock, ChevronRight, Headphones, Search } from 'lucide-react'
 import UserAvatar, { useUserInfo } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
 import ChatWidget from '../components/ChatWidget'
-import { useAuth } from '../contexts/AuthContext'
-import { supabase } from '../lib/supabase'
+
 
 const faqItems = [
   { q: 'Làm sao để đặt tour?', a: 'Duyệt qua các điểm đến và nhấn nút ĐẶT TOUR để bắt đầu đặt chuyến đi.' },
@@ -23,61 +22,11 @@ const fadeUp = { initial: { opacity: 0, y: 15 }, animate: { opacity: 1, y: 0, tr
 
 export default function Support() {
   const { displayName, email } = useUserInfo()
-  const { user } = useAuth()
   const [chatOpen, setChatOpen] = useState(false)
-  const [bankName, setBankName] = useState('')
-  const [bankAccount, setBankAccount] = useState('')
-  const [editBankName, setEditBankName] = useState('')
-  const [editBankAccount, setEditBankAccount] = useState('')
-  const [showBankEdit, setShowBankEdit] = useState(false)
-  const [bankSaving, setBankSaving] = useState(false)
-  const [bankSaved, setBankSaved] = useState(false)
-
-  useEffect(() => {
-    if (user) {
-      supabase
-        .from('profiles')
-        .select('bank_name, bank_account_number')
-        .eq('id', user.id)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            setBankName(data.bank_name || '')
-            setBankAccount(data.bank_account_number || '')
-            setEditBankName(data.bank_name || '')
-            setEditBankAccount(data.bank_account_number || '')
-          }
-        })
-    }
-  }, [user])
 
   const handleContact = (action: string) => {
     if (action === 'chat') {
       setChatOpen(true)
-    }
-  }
-
-  const toggleBankEdit = () => {
-    if (!showBankEdit) {
-      setEditBankName(bankName)
-      setEditBankAccount(bankAccount)
-    }
-    setShowBankEdit(!showBankEdit)
-  }
-
-  const handleSaveBank = async () => {
-    if (!user) return
-    setBankSaving(true)
-    const { error } = await supabase
-      .from('profiles')
-      .update({ bank_name: editBankName, bank_account_number: editBankAccount })
-      .eq('id', user.id)
-    setBankSaving(false)
-    if (!error) {
-      setBankName(editBankName)
-      setBankAccount(editBankAccount)
-      setBankSaved(true)
-      setTimeout(() => { setBankSaved(false); setShowBankEdit(false) }, 1200)
     }
   }
 
@@ -112,61 +61,6 @@ export default function Support() {
                 </motion.button>
               )
             })}
-            {/* Số tài khoản */}
-            <motion.div variants={fadeUp} className="w-full bg-white rounded-2xl shadow-sm border border-border/50 overflow-hidden">
-              <button onClick={toggleBankEdit} className="w-full flex items-center gap-4 p-4 cursor-pointer active:bg-gray-50">
-                <div className="w-11 h-11 rounded-xl bg-purple-500 flex items-center justify-center shadow-md"><Landmark className="w-5 h-5 text-white" /></div>
-                <div className="flex-1 text-left">
-                  <p className="font-semibold text-sm">Số tài khoản</p>
-                  {bankAccount ? (
-                    <div>
-                      <p className="text-text-muted text-xs">{bankName || 'Chưa có ngân hàng'}</p>
-                      <p className="text-sm font-bold text-primary mt-0.5">{bankAccount}</p>
-                    </div>
-                  ) : (
-                    <p className="text-text-muted text-xs italic">Nhấn để thêm số tài khoản</p>
-                  )}
-                </div>
-                <ChevronRight className={`w-4 h-4 text-text-muted transition-transform ${showBankEdit ? 'rotate-90' : ''}`} />
-              </button>
-              <AnimatePresence>
-                {showBankEdit && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                    <div className="px-4 pb-4 space-y-3 border-t border-border/30 pt-3">
-                      <div>
-                        <label className="text-[10px] text-text-muted font-medium mb-1 block">Ngân hàng</label>
-                        <select value={editBankName} onChange={e => setEditBankName(e.target.value)} className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary">
-                          <option value="">Chọn ngân hàng</option>
-                          <option value="MB Bank">MB Bank</option>
-                          <option value="Vietcombank (VCB)">Vietcombank (VCB)</option>
-                          <option value="Vietinbank">Vietinbank</option>
-                          <option value="BIDV">BIDV</option>
-                          <option value="Techcombank">Techcombank</option>
-                          <option value="ACB">ACB</option>
-                          <option value="Sacombank">Sacombank</option>
-                          <option value="VPBank">VPBank</option>
-                          <option value="TPBank">TPBank</option>
-                          <option value="Agribank">Agribank</option>
-                          <option value="SHB">SHB</option>
-                          <option value="HDBank">HDBank</option>
-                          <option value="Momo">Momo</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-text-muted font-medium mb-1 block">Số tài khoản</label>
-                        <input type="text" value={editBankAccount} onChange={e => setEditBankAccount(e.target.value)} placeholder="Nhập số tài khoản" className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={handleSaveBank} disabled={bankSaving} className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-white text-xs font-semibold rounded-lg disabled:opacity-50 cursor-pointer">
-                          {bankSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : bankSaved ? <><Check className="w-3.5 h-3.5" /> Đã lưu</> : <><Save className="w-3.5 h-3.5" /> Lưu</>}
-                        </button>
-                        <button onClick={() => setShowBankEdit(false)} className="px-4 py-2 bg-gray-100 text-text-secondary text-xs font-semibold rounded-lg cursor-pointer hover:bg-gray-200"><X className="w-3.5 h-3.5" /></button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="flex items-center gap-3 p-4 bg-primary-50 rounded-2xl mb-6">
             <Clock className="w-5 h-5 text-primary" />
@@ -229,58 +123,6 @@ export default function Support() {
                     </motion.button>
                   )
                 })}
-                {/* Số tài khoản */}
-                <motion.div whileHover={{ y: -4 }} className="rounded-2xl border border-border/50 hover:shadow-md transition-all group overflow-hidden">
-                  <button onClick={toggleBankEdit} className="w-full p-5 text-center cursor-pointer">
-                    <div className="w-12 h-12 rounded-xl bg-purple-500 flex items-center justify-center shadow-md mx-auto mb-3 group-hover:scale-110 transition-transform"><Landmark className="w-6 h-6 text-white" /></div>
-                    <p className="font-semibold text-sm">Số tài khoản</p>
-                    {bankAccount ? (
-                      <div className="mt-0.5">
-                        <p className="text-text-muted text-xs">{bankName || 'Chưa có ngân hàng'}</p>
-                        <p className="text-sm font-bold text-primary mt-0.5">{bankAccount}</p>
-                      </div>
-                    ) : (
-                      <p className="text-text-muted text-xs mt-0.5 italic">Nhấn để thêm</p>
-                    )}
-                  </button>
-                  <AnimatePresence>
-                    {showBankEdit && (
-                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                        <div className="px-4 pb-4 space-y-3 border-t border-border/30 pt-3 text-left">
-                          <div>
-                            <label className="text-[10px] text-text-muted font-medium mb-1 block">Ngân hàng</label>
-                            <select value={editBankName} onChange={e => setEditBankName(e.target.value)} className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary">
-                              <option value="">Chọn ngân hàng</option>
-                              <option value="MB Bank">MB Bank</option>
-                              <option value="Vietcombank (VCB)">Vietcombank (VCB)</option>
-                              <option value="Vietinbank">Vietinbank</option>
-                              <option value="BIDV">BIDV</option>
-                              <option value="Techcombank">Techcombank</option>
-                              <option value="ACB">ACB</option>
-                              <option value="Sacombank">Sacombank</option>
-                              <option value="VPBank">VPBank</option>
-                              <option value="TPBank">TPBank</option>
-                              <option value="Agribank">Agribank</option>
-                              <option value="SHB">SHB</option>
-                              <option value="HDBank">HDBank</option>
-                              <option value="Momo">Momo</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-[10px] text-text-muted font-medium mb-1 block">Số tài khoản</label>
-                            <input type="text" value={editBankAccount} onChange={e => setEditBankAccount(e.target.value)} placeholder="Nhập số tài khoản" className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={handleSaveBank} disabled={bankSaving} className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-primary text-white text-xs font-semibold rounded-lg disabled:opacity-50 cursor-pointer">
-                              {bankSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : bankSaved ? <><Check className="w-3.5 h-3.5" /> Đã lưu</> : <><Save className="w-3.5 h-3.5" /> Lưu</>}
-                            </button>
-                            <button onClick={() => setShowBankEdit(false)} className="px-4 py-2 bg-gray-100 text-text-secondary text-xs font-semibold rounded-lg cursor-pointer hover:bg-gray-200"><X className="w-3.5 h-3.5" /></button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
               </div>
             </div>
 
