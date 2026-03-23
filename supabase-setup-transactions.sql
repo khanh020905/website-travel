@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   amount DECIMAL(10, 2) NOT NULL,
-  type VARCHAR(20) DEFAULT 'booking' CHECK (type IN ('booking', 'topup', 'refund')),
+  type VARCHAR(20) DEFAULT 'booking' CHECK (type IN ('booking', 'topup', 'refund', 'daily_gift')),
   description TEXT,
   balance_after DECIMAL(10, 2),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

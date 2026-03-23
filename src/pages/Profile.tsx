@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Wallet, History, Settings, Lock, Globe, LogOut, ChevronRight, Search, Edit3, LayoutDashboard, ArrowDownLeft, DollarSign, RefreshCw, Loader2, User, Phone, Mail, MapPinned, Save, X, Check, Eye, EyeOff } from 'lucide-react'
+import { Wallet, History, Settings, Lock, Globe, LogOut, ChevronRight, Search, Edit3, LayoutDashboard, ArrowDownLeft, DollarSign, RefreshCw, Loader2, User, Phone, Mail, MapPinned, Save, X, Check, Eye, EyeOff, Gift, Clock } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
@@ -48,6 +48,8 @@ export default function Profile() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [txLoading, setTxLoading] = useState(false)
   const WITHDRAW_MSG = 'Tôi đang muốn rút tiền bạn có thể hỗ trợ tôi được không'
+  const DEPOSIT_MSG = 'Tôi muốn nạp tiền bạn có thể hỗ trợ tôi không?'
+  const [chatMessage, setChatMessage] = useState(WITHDRAW_MSG)
 
   // Profile info state
   const [profileInfo, setProfileInfo] = useState<ProfileInfo>({ full_name: '', phone: '', wallet_address: '', detailed_address: '' })
@@ -133,6 +135,109 @@ export default function Profile() {
   // Language dropdown
   const [showLangDropdown, setShowLangDropdown] = useState(false)
 
+  // Daily gift state
+  const [dailyGiftClaimed, setDailyGiftClaimed] = useState(false)
+  const [dailyGiftClaiming, setDailyGiftClaiming] = useState(false)
+  const [dailyGiftAmount, setDailyGiftAmount] = useState<number | null>(null)
+  const [countdown, setCountdown] = useState('')
+  const [lastClaimTime, setLastClaimTime] = useState<number | null>(null)
+
+  // Check daily gift status from Supabase (server-side, not exploitable)
+  useEffect(() => {
+    if (!user) return
+    const checkDailyGift = async () => {
+      const { data } = await supabase
+        .from('transactions')
+        .select('created_at, amount')
+        .eq('user_id', user.id)
+        .eq('type', 'daily_gift')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      if (data && data.length > 0) {
+        const claimTime = new Date(data[0].created_at).getTime()
+        const diff = Date.now() - claimTime
+        if (diff < 24 * 60 * 60 * 1000) {
+          setDailyGiftClaimed(true)
+          setLastClaimTime(claimTime)
+          setDailyGiftAmount(Number(data[0].amount))
+        } else {
+          setDailyGiftClaimed(false)
+          setLastClaimTime(null)
+        }
+      }
+    }
+    checkDailyGift()
+  }, [user])
+
+  // Countdown timer based on server claim time
+  useEffect(() => {
+    if (!lastClaimTime) { setCountdown(''); return }
+    const interval = setInterval(() => {
+      const remaining = 24 * 60 * 60 * 1000 - (Date.now() - lastClaimTime)
+      if (remaining <= 0) {
+        setDailyGiftClaimed(false)
+        setDailyGiftAmount(null)
+        setLastClaimTime(null)
+        setCountdown('')
+      } else {
+        const h = Math.floor(remaining / 3600000)
+        const m = Math.floor((remaining % 3600000) / 60000)
+        const s = Math.floor((remaining % 60000) / 1000)
+        setCountdown(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`)
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [lastClaimTime])
+
+  const handleClaimDailyGift = async () => {
+    if (!user || dailyGiftClaimed || dailyGiftClaiming) return
+    setDailyGiftClaiming(true)
+
+    // Double-check server-side before claiming
+    const { data: recent } = await supabase
+      .from('transactions')
+      .select('created_at')
+      .eq('user_id', user.id)
+      .eq('type', 'daily_gift')
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (recent && recent.length > 0) {
+      const diff = Date.now() - new Date(recent[0].created_at).getTime()
+      if (diff < 24 * 60 * 60 * 1000) {
+        setDailyGiftClaimed(true)
+        setLastClaimTime(new Date(recent[0].created_at).getTime())
+        setDailyGiftClaiming(false)
+        return
+      }
+    }
+
+    // Random $1.00 - $2.00
+    const amount = Math.round((Math.random() * 1 + 1) * 100) / 100
+    const newBalance = balance + amount
+
+    const { error: balErr } = await supabase.from('profiles').update({ balance: newBalance }).eq('id', user.id)
+    if (balErr) console.error('Balance update error:', balErr)
+
+    const { error: txErr } = await supabase.from('transactions').insert({
+      user_id: user.id,
+      amount: amount,
+      type: 'daily_gift',
+      description: `Quà hằng ngày +$${amount.toFixed(2)}`,
+      balance_after: newBalance,
+    })
+    if (txErr) console.error('Transaction insert error:', txErr)
+
+    setBalance(newBalance)
+    setDailyGiftAmount(amount)
+    setDailyGiftClaimed(true)
+    setLastClaimTime(Date.now())
+    setDailyGiftClaiming(false)
+    // Auto refresh transaction history
+    fetchTransactions()
+  }
+
   const fetchTransactions = async () => {
     if (!user) return
     setTxLoading(true)
@@ -147,6 +252,12 @@ export default function Profile() {
   }
 
   const handleWithdraw = () => {
+    setChatMessage(WITHDRAW_MSG)
+    setChatOpen(true)
+  }
+
+  const handleDeposit = () => {
+    setChatMessage(DEPOSIT_MSG)
     setChatOpen(true)
   }
 
@@ -295,6 +406,62 @@ export default function Profile() {
             )}
           </AnimatePresence>
 
+          {/* Daily Gift - Mobile */}
+          <motion.div variants={fadeUp} initial="initial" animate="animate" className="mb-4">
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={handleClaimDailyGift}
+              disabled={dailyGiftClaimed || dailyGiftClaiming}
+              className={`w-full flex items-center gap-4 p-4 rounded-2xl shadow-sm border cursor-pointer transition-all ${
+                dailyGiftClaimed
+                  ? 'bg-gray-50 border-border/50'
+                  : 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 hover:shadow-md'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${dailyGiftClaimed ? 'bg-gray-100' : 'bg-gradient-to-br from-amber-400 to-yellow-500 shadow-md shadow-amber-200'}`}>
+                {dailyGiftClaiming ? (
+                  <Loader2 className="w-5 h-5 text-white animate-spin" />
+                ) : (
+                  <Gift className={`w-5 h-5 ${dailyGiftClaimed ? 'text-gray-400' : 'text-white'}`} />
+                )}
+              </div>
+              <div className="flex-1 text-left">
+                <p className={`font-semibold text-sm ${dailyGiftClaimed ? 'text-text-muted' : 'text-amber-700'}`}>Quà Hằng Ngày</p>
+                {dailyGiftClaimed ? (
+                  <div className="flex items-center gap-1">
+                    {dailyGiftAmount && <span className="text-green-600 text-xs font-bold">+${dailyGiftAmount.toFixed(2)}</span>}
+                    <span className="text-text-muted text-xs flex items-center gap-0.5">
+                      <Clock className="w-3 h-3" /> {countdown || 'Đang tính...'}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+              {!dailyGiftClaimed && !dailyGiftClaiming && (
+                <span className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-xs font-bold rounded-full shadow-sm">
+                  Nhận
+                </span>
+              )}
+            </motion.button>
+          </motion.div>
+
+          {/* Nạp Tiền - Mobile */}
+          <motion.div variants={fadeUp} initial="initial" animate="animate" className="mb-4">
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={handleDeposit}
+              className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm border border-border/50 active:bg-gray-50 cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-purple-500" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-semibold text-sm">Nạp Tiền</p>
+                <p className="text-text-muted text-xs">Liên hệ admin để nạp tiền</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-muted" />
+            </motion.button>
+          </motion.div>
+
           <motion.div variants={stagger} initial="initial" animate="animate" className="space-y-2 mb-6">
             {menuItems.map((item) => {
               const Icon = item.icon
@@ -329,14 +496,14 @@ export default function Profile() {
                     <div className="divide-y divide-border/30">
                       {transactions.map((tx) => (
                         <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                            {tx.type === 'booking' ? '🏖️' : '💸'}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-gradient-to-br from-amber-400 to-yellow-500' : 'bg-gradient-to-br from-orange-400 to-orange-500'}`}>
+                            {tx.type === 'booking' ? '🏖️' : tx.type === 'daily_gift' ? '🎁' : '💸'}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               <p className="font-semibold text-xs truncate">{tx.description}</p>
-                              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
-                                <ArrowDownLeft className="w-2 h-2 inline mr-0.5" />{tx.type === 'booking' ? 'Đặt tour' : tx.type}
+                              <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
+                                <ArrowDownLeft className="w-2 h-2 inline mr-0.5" />{tx.type === 'booking' ? 'Đặt tour' : tx.type === 'daily_gift' ? 'Quà hằng ngày' : tx.type}
                               </span>
                             </div>
                             <p className="text-[10px] text-text-muted">{formatDate(tx.created_at)}</p>
@@ -535,6 +702,65 @@ export default function Profile() {
               </div>
             </motion.div>
 
+            {/* Daily Gift - Desktop */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+              <motion.button
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleClaimDailyGift}
+                disabled={dailyGiftClaimed || dailyGiftClaiming}
+                className={`w-full flex items-center gap-5 p-5 rounded-2xl border shadow-sm transition-all cursor-pointer ${
+                  dailyGiftClaimed
+                    ? 'bg-white border-border/50'
+                    : 'bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-amber-200 hover:shadow-md'
+                }`}
+              >
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${dailyGiftClaimed ? 'bg-gray-100' : 'bg-gradient-to-br from-amber-400 to-yellow-500 shadow-lg shadow-amber-200'}`}>
+                  {dailyGiftClaiming ? (
+                    <Loader2 className="w-7 h-7 text-white animate-spin" />
+                  ) : (
+                    <Gift className={`w-7 h-7 ${dailyGiftClaimed ? 'text-gray-400' : 'text-white'}`} />
+                  )}
+                </div>
+                <div className="flex-1 text-left">
+                  <p className={`font-bold text-base ${dailyGiftClaimed ? 'text-text-muted' : 'text-amber-700'}`}>🎁 Quà Hằng Ngày</p>
+                  {dailyGiftClaimed ? (
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {dailyGiftAmount && <span className="text-green-600 text-sm font-bold">+${dailyGiftAmount.toFixed(2)} đã nhận</span>}
+                      <span className="text-text-muted text-sm flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" /> Đặt lại sau: {countdown || 'Đang tính...'}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+                {!dailyGiftClaimed && !dailyGiftClaiming && (
+                  <span className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white text-sm font-bold rounded-xl shadow-md shadow-amber-200 hover:shadow-lg transition-shadow">
+                    Nhận ngay
+                  </span>
+                )}
+              </motion.button>
+            </motion.div>
+
+            {/* Nạp Tiền - Desktop */}
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleDeposit}
+              className="w-full flex items-center gap-4 p-5 bg-white rounded-2xl border border-border/50 shadow-sm hover:shadow-md transition-all cursor-pointer"
+            >
+              <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-purple-500" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-semibold text-sm">Nạp Tiền</p>
+                <p className="text-text-muted text-xs">Liên hệ admin để nạp tiền vào tài khoản</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-muted" />
+            </motion.button>
+
             {/* Quick actions */}
             <div className="grid grid-cols-2 gap-4">
               {menuItems.map((item, i) => {
@@ -574,14 +800,14 @@ export default function Profile() {
                       <div className="divide-y divide-border/30">
                         {transactions.map((tx) => (
                           <motion.div key={tx.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors">
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                              {tx.type === 'booking' ? '🏖️' : '💸'}
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-gradient-to-br from-amber-400 to-yellow-500' : 'bg-gradient-to-br from-orange-400 to-orange-500'}`}>
+                              {tx.type === 'booking' ? '🏖️' : tx.type === 'daily_gift' ? '🎁' : '💸'}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <p className="font-semibold text-sm truncate">{tx.description}</p>
-                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 flex-shrink-0">
-                                  <ArrowDownLeft className="w-2.5 h-2.5 inline mr-0.5" />{tx.type === 'booking' ? 'Đặt tour' : tx.type}
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
+                                  <ArrowDownLeft className="w-2.5 h-2.5 inline mr-0.5" />{tx.type === 'booking' ? 'Đặt tour' : tx.type === 'daily_gift' ? 'Quà hằng ngày' : tx.type}
                                 </span>
                               </div>
                               <p className="text-[10px] text-text-muted truncate">{tx.description} • {formatDate(tx.created_at)}</p>
@@ -661,7 +887,7 @@ export default function Profile() {
           </div>
         </div>
       </div>
-      <ChatWidget open={chatOpen} onClose={() => setChatOpen(false)} initialMessage={WITHDRAW_MSG} />
+      <ChatWidget open={chatOpen} onClose={() => setChatOpen(false)} initialMessage={chatMessage} />
 
       {/* Password Change Modal */}
       <AnimatePresence>

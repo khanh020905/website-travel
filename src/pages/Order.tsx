@@ -20,6 +20,10 @@ export default function Order() {
   const progressRef = useRef<HTMLDivElement>(null)
   const counterRef = useRef<HTMLSpanElement>(null)
 
+  // Hidden random limit: user will be stopped at a random number between 20-50
+  // UI still shows /60 but they can never actually reach 60
+  const hiddenLimitRef = useRef(Math.floor(Math.random() * 31) + 20) // 20 to 50
+
   // Each click costs $0.60
   const costPerClick = COST_PER_CLICK
   const totalSpent = orderCount * costPerClick
@@ -47,7 +51,8 @@ export default function Order() {
   }, [progressPct])
 
   const handleClickOrder = () => {
-    if (orderCount + 1 > maxBookings) {
+    // Use hidden random limit (20-50) instead of the displayed max (60)
+    if (orderCount + 1 > hiddenLimitRef.current) {
       setExceeded(true)
       setTimeout(() => setExceeded(false), 3000)
       return
@@ -167,7 +172,7 @@ export default function Order() {
               {exceeded && (
                 <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
                   <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                  <p className="text-red-600 text-sm font-semibold">Đã đạt tối đa {maxBookings} lần!</p>
+                  <p className="text-red-600 text-sm font-semibold">Hệ thống đang bận, vui lòng thử lại sau!</p>
                 </motion.div>
               )}
               {insufficientBalance && (
@@ -311,7 +316,7 @@ export default function Order() {
                 {exceeded && (
                   <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
                     <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                    <p className="text-red-600 text-sm font-semibold">Đã đạt tối đa {maxBookings} lần!</p>
+                    <p className="text-red-600 text-sm font-semibold">Hệ thống đang bận, vui lòng thử lại sau!</p>
                   </motion.div>
                 )}
                 {insufficientBalance && (
