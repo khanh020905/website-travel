@@ -40,6 +40,7 @@ interface Profile {
   balance: number
   bank_name: string
   bank_account_number: string
+  order_count: number
   created_at: string
 }
 
@@ -57,10 +58,11 @@ interface Withdrawal {
   approved_at: string | null
 }
 
-function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdateBalance }: { profiles: Profile[]; loading: boolean; error: string | null; onRetry: () => void; compact?: boolean; onUpdateBalance?: (id: string, balance: number) => Promise<void> }) {
+function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdateBalance, onResetTour }: { profiles: Profile[]; loading: boolean; error: string | null; onRetry: () => void; compact?: boolean; onUpdateBalance?: (id: string, balance: number) => Promise<void>; onResetTour?: (id: string) => Promise<void> }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
+  const [resettingId, setResettingId] = useState<string | null>(null)
 
   const startEdit = (p: Profile) => {
     setEditingId(p.id)
@@ -105,7 +107,7 @@ function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdat
     return <p className="text-text-muted text-xs text-center py-6">Hiện đang trống — Chưa có người dùng nào. 👤</p>
   }
 
-  const displayList = compact ? profiles.slice(0, 5) : profiles
+  const displayList = profiles
 
   return (
     <div className="space-y-2.5">
@@ -158,6 +160,24 @@ function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdat
             )}
           </div>
 
+          {/* Reset Tour button */}
+          <div className="flex-shrink-0">
+            <button
+              onClick={async () => {
+                if (!onResetTour) return
+                setResettingId(p.id)
+                await onResetTour(p.id)
+                setResettingId(null)
+              }}
+              disabled={resettingId === p.id || (p.order_count || 0) === 0}
+              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-lg bg-orange-50 text-orange-600 border border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Reset đặt tour"
+            >
+              {resettingId === p.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              {p.order_count || 0}
+            </button>
+          </div>
+
           <div className="text-right flex-shrink-0">
             <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
               p.provider === 'google' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-600'
@@ -181,9 +201,7 @@ function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdat
           </div>
         </motion.div>
       ))}
-      {compact && profiles.length > 5 && (
-        <p className="text-center text-text-muted text-[10px] pt-1">+ {profiles.length - 5} người dùng khác</p>
-      )}
+
     </div>
   )
 }
@@ -261,6 +279,11 @@ export default function AdminDashboard() {
   const handleUpdateBalance = async (id: string, balance: number) => {
     await supabase.from('profiles').update({ balance }).eq('id', id)
     setProfiles((prev) => prev.map((p) => p.id === id ? { ...p, balance } : p))
+  }
+
+  const handleResetTour = async (id: string) => {
+    await supabase.from('profiles').update({ order_count: 0 }).eq('id', id)
+    setProfiles((prev) => prev.map((p) => p.id === id ? { ...p, order_count: 0 } : p))
   }
 
   // Build stats with real user count
@@ -566,7 +589,7 @@ export default function AdminDashboard() {
           {/* User list - Mobile */}
           <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2"><Users className="w-4 h-4 text-purple-500" /> Người dùng {!profilesLoading && <span className="text-text-muted font-normal">({profiles.length})</span>}</h3>
           <div className="bg-white rounded-2xl p-4 border border-border/50 shadow-sm mb-6">
-            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} onUpdateBalance={handleUpdateBalance} compact />
+            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} onUpdateBalance={handleUpdateBalance} onResetTour={handleResetTour} compact />
           </div>
 
           {/* Chat Management - Mobile */}
@@ -822,7 +845,7 @@ export default function AdminDashboard() {
             <button onClick={fetchProfiles} className="flex items-center gap-1.5 text-primary text-xs font-semibold cursor-pointer hover:underline"><RefreshCw className="w-3.5 h-3.5" /> Làm mới</button>
           </div>
           <div className="px-6 pb-6">
-            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} onUpdateBalance={handleUpdateBalance} />
+            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} onUpdateBalance={handleUpdateBalance} onResetTour={handleResetTour} />
           </div>
         </motion.div>
 
