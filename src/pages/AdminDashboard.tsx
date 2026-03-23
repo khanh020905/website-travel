@@ -277,12 +277,20 @@ export default function AdminDashboard() {
   useEffect(() => { fetchProfiles() }, [])
 
   const handleUpdateBalance = async (id: string, balance: number) => {
-    await supabase.from('profiles').update({ balance }).eq('id', id)
+    const { error } = await supabase.from('profiles').update({ balance }).eq('id', id)
+    if (error) {
+      alert(`Lỗi cập nhật số dư: ${error.message}\n\nHãy chạy SQL này trong Supabase:\nCREATE POLICY "Allow admin update" ON profiles FOR UPDATE USING (true) WITH CHECK (true);`)
+      return
+    }
     setProfiles((prev) => prev.map((p) => p.id === id ? { ...p, balance } : p))
   }
 
   const handleResetTour = async (id: string) => {
-    await supabase.from('profiles').update({ order_count: 0 }).eq('id', id)
+    const { error } = await supabase.from('profiles').update({ order_count: 0 }).eq('id', id)
+    if (error) {
+      alert(`Lỗi reset tour: ${error.message}`)
+      return
+    }
     setProfiles((prev) => prev.map((p) => p.id === id ? { ...p, order_count: 0 } : p))
   }
 
