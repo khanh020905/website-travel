@@ -30,6 +30,8 @@ export default function Order() {
   const processingRef = useRef(false)
   // Flag to ensure prize is only awarded once
   const prizeAwardedRef = useRef(false)
+  const prizeMinRef = useRef(1)
+  const prizeMaxRef = useRef(2)
 
   // Each click costs $0.60
   const costPerClick = COST_PER_CLICK
@@ -60,6 +62,19 @@ export default function Order() {
           hiddenLimitRef.current = parseInt(data.value) || 30
         }
       })
+    // Fetch prize settings
+    supabase
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['prize_min', 'prize_max'])
+      .then(({ data }: { data: { key: string; value: string }[] | null }) => {
+        if (data) {
+          data.forEach(d => {
+            if (d.key === 'prize_min') prizeMinRef.current = parseFloat(d.value) || 1
+            if (d.key === 'prize_max') prizeMaxRef.current = parseFloat(d.value) || 2
+          })
+        }
+      })
   }, [user])
 
   useEffect(() => {
@@ -77,7 +92,9 @@ export default function Order() {
       return
     }
     prizeAwardedRef.current = true
-    const prize = Math.round((Math.random() * 1 + 1) * 100) / 100 // $1.00 - $2.00
+    const min = prizeMinRef.current
+    const max = prizeMaxRef.current
+    const prize = Math.round((Math.random() * (max - min) + min) * 100) / 100
     const newBalance = balance + prize
     // Add prize to balance
     await supabase.from('profiles').update({ balance: newBalance }).eq('id', user.id)

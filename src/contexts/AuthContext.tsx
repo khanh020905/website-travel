@@ -8,8 +8,8 @@ interface AuthContextType {
   loading: boolean
   isRecovery: boolean
   clearRecovery: () => void
-  signIn: (username: string, password: string) => Promise<{ error: string | null }>
-  signUp: (username: string, password: string, displayName?: string) => Promise<{ error: string | null }>
+  signIn: (displayName: string, password: string) => Promise<{ error: string | null }>
+  signUp: (displayName: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
 }
@@ -49,20 +49,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearRecovery = () => setIsRecovery(false)
 
-  const signIn = async (username: string, password: string) => {
-    const email = `${username.toLowerCase().replace(/\s+/g, '_')}@travel.local`
+  const signIn = async (displayName: string, password: string) => {
+    // Look up the user's email by their display_name
+    const { data: email, error: lookupError } = await supabase.rpc('get_email_by_display_name', {
+      p_display_name: displayName
+    })
+    if (lookupError || !email) {
+      return { error: 'Tên đăng nhập hoặc mật khẩu không đúng' }
+    }
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error?.message ?? null }
   }
 
-  const signUp = async (username: string, password: string, displayName?: string) => {
-    const email = `${username.toLowerCase().replace(/\s+/g, '_')}@travel.local`
+  const signUp = async (displayName: string, password: string) => {
+    // Generate a unique email for Supabase (users never see this)
+    const slug = displayName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+    const email = `${slug}_${Date.now()}@travel.local`
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
-          display_name: displayName || username,
+          display_name: displayName,
         },
       },
     })

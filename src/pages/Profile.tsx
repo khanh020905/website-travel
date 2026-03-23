@@ -543,6 +543,21 @@ export default function Profile() {
             </motion.button>
           </motion.div>
 
+          {/* Số tài khoản - Mobile */}
+          <motion.div variants={fadeUp} initial="initial" animate="animate" className="mb-4">
+            <div className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm border border-border/50">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                <Landmark className="w-5 h-5 text-indigo-500" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-semibold text-sm">Số tài khoản</p>
+                <p className="text-text-muted text-xs">{profileInfo.bank_name || 'Chưa cập nhật'}</p>
+                <p className="text-text-primary text-sm font-mono font-bold">{profileInfo.bank_account_number || 'Chưa cập nhật'}</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-muted" />
+            </div>
+          </motion.div>
+
           {/* Nạp Tiền - Mobile */}
           <motion.div variants={fadeUp} initial="initial" animate="animate" className="mb-4">
             <motion.button

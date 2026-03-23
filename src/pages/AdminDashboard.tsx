@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import gsap from 'gsap'
-import { Calendar, DollarSign, Users, Eye, MoreHorizontal, RefreshCw, BarChart3, Shield, Settings, Bell, ArrowUpRight, ArrowDownRight, Search, Filter, Minus, Plus, Check, X, Loader2, Landmark, OctagonX, Banknote, Clock, CheckCircle } from 'lucide-react'
+import { Calendar, DollarSign, Users, Eye, MoreHorizontal, RefreshCw, BarChart3, Shield, Settings, Bell, ArrowUpRight, ArrowDownRight, Search, Filter, Minus, Plus, Check, X, Loader2, Landmark, OctagonX, Banknote, Clock, CheckCircle, Gift } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PageTransition from '../components/PageTransition'
 import AdminChatSection from '../components/AdminChatSection'
@@ -346,6 +346,43 @@ export default function AdminDashboard() {
     setSavingStopLimit(false)
   }
 
+  // Prize amount settings
+  const [prizeMin, setPrizeMin] = useState(1)
+  const [prizeMax, setPrizeMax] = useState(2)
+  const [prizeMinInput, setPrizeMinInput] = useState('1.00')
+  const [prizeMaxInput, setPrizeMaxInput] = useState('2.00')
+  const [savingPrize, setSavingPrize] = useState(false)
+  const [prizeSaved, setPrizeSaved] = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['prize_min', 'prize_max'])
+      .then(({ data }: { data: { key: string; value: string }[] | null }) => {
+        if (data) {
+          data.forEach(d => {
+            if (d.key === 'prize_min') { setPrizeMin(parseFloat(d.value)); setPrizeMinInput(parseFloat(d.value).toFixed(2)) }
+            if (d.key === 'prize_max') { setPrizeMax(parseFloat(d.value)); setPrizeMaxInput(parseFloat(d.value).toFixed(2)) }
+          })
+        }
+      })
+  }, [])
+
+  const savePrizeSettings = async () => {
+    const min = parseFloat(prizeMinInput)
+    const max = parseFloat(prizeMaxInput)
+    if (isNaN(min) || isNaN(max) || min < 0.01 || max < min || max > 100) return
+    setSavingPrize(true)
+    await supabase.from('app_settings').upsert({ key: 'prize_min', value: String(min), updated_at: new Date().toISOString() })
+    await supabase.from('app_settings').upsert({ key: 'prize_max', value: String(max), updated_at: new Date().toISOString() })
+    setPrizeMin(min)
+    setPrizeMax(max)
+    setPrizeSaved(true)
+    setTimeout(() => setPrizeSaved(false), 2000)
+    setSavingPrize(false)
+  }
+
   // Withdrawal management
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
   const [withdrawalsLoading, setWithdrawalsLoading] = useState(true)
@@ -479,6 +516,50 @@ export default function AdminDashboard() {
               {savingStopLimit ? 'Đang lưu...' : stopLimitSaved ? '✅ Đã lưu!' : 'Lưu giới hạn'}
             </motion.button>
             <p className="text-[10px] text-text-muted text-center mt-2">Hiện tại: <span className="font-bold text-red-500">{tourStopLimit} lần</span></p>
+          </div>
+
+          <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2"><Gift className="w-4 h-4 text-amber-500" /> Tiền thưởng</h3>
+          <div className="bg-white rounded-2xl p-4 border border-border/50 shadow-sm">
+            <p className="text-text-muted text-xs mb-3">Số tiền thưởng ngẫu nhiên khi user đạt giới hạn đặt tour:</p>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs text-text-muted w-8">Min</span>
+              <div className="flex items-center gap-1 flex-1">
+                <span className="text-green-600 font-bold">$</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.01"
+                  max="100"
+                  value={prizeMinInput}
+                  onChange={(e) => setPrizeMinInput(e.target.value)}
+                  className="flex-1 text-center text-lg font-black py-1.5 border border-border rounded-xl focus:border-primary focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs text-text-muted w-8">Max</span>
+              <div className="flex items-center gap-1 flex-1">
+                <span className="text-green-600 font-bold">$</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.01"
+                  max="100"
+                  value={prizeMaxInput}
+                  onChange={(e) => setPrizeMaxInput(e.target.value)}
+                  className="flex-1 text-center text-lg font-black py-1.5 border border-border rounded-xl focus:border-primary focus:outline-none"
+                />
+              </div>
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={savePrizeSettings}
+              disabled={savingPrize}
+              className="w-full py-2.5 bg-amber-500 text-white font-semibold text-sm rounded-xl disabled:opacity-50 cursor-pointer"
+            >
+              {savingPrize ? 'Đang lưu...' : prizeSaved ? '✅ Đã lưu!' : 'Lưu tiền thưởng'}
+            </motion.button>
+            <p className="text-[10px] text-text-muted text-center mt-2">Hiện tại: <span className="font-bold text-amber-600">${prizeMin.toFixed(2)} - ${prizeMax.toFixed(2)}</span></p>
           </div>
 
 
@@ -683,6 +764,53 @@ export default function AdminDashboard() {
                 {savingStopLimit ? 'Đang lưu...' : stopLimitSaved ? '✅ Đã lưu!' : 'Lưu giới hạn'}
               </motion.button>
               <p className="text-sm text-text-muted">Hiện tại: <span className="font-bold text-red-500 text-lg">{tourStopLimit} lần</span></p>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Prize Settings - Desktop */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden mt-6">
+          <div className="flex items-center justify-between p-6 pb-4">
+            <h3 className="font-bold text-base flex items-center gap-2"><Gift className="w-5 h-5 text-amber-500" /> Tiền thưởng</h3>
+          </div>
+          <div className="px-6 pb-6">
+            <p className="text-text-muted text-sm mb-4">Số tiền thưởng ngẫu nhiên khi user đạt giới hạn đặt tour.</p>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-text-muted">Min $</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.01"
+                  max="100"
+                  value={prizeMinInput}
+                  onChange={(e) => setPrizeMinInput(e.target.value)}
+                  className="w-28 text-center text-2xl font-black py-2 border-2 border-border rounded-xl focus:border-primary focus:outline-none transition-colors"
+                />
+              </div>
+              <span className="text-text-muted font-bold">→</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-text-muted">Max $</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.01"
+                  max="100"
+                  value={prizeMaxInput}
+                  onChange={(e) => setPrizeMaxInput(e.target.value)}
+                  className="w-28 text-center text-2xl font-black py-2 border-2 border-border rounded-xl focus:border-primary focus:outline-none transition-colors"
+                />
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={savePrizeSettings}
+                disabled={savingPrize}
+                className="px-6 py-3 bg-amber-500 text-white font-semibold text-sm rounded-xl disabled:opacity-50 cursor-pointer hover:bg-amber-600 transition-colors"
+              >
+                {savingPrize ? 'Đang lưu...' : prizeSaved ? '✅ Đã lưu!' : 'Lưu tiền thưởng'}
+              </motion.button>
+              <p className="text-sm text-text-muted">Hiện tại: <span className="font-bold text-amber-600 text-lg">${prizeMin.toFixed(2)} - ${prizeMax.toFixed(2)}</span></p>
             </div>
           </div>
         </motion.div>
