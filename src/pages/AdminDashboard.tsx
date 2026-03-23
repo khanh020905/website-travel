@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import gsap from 'gsap'
-import { Calendar, DollarSign, Users, Eye, MoreHorizontal, RefreshCw, BarChart3, PieChart, Shield, Settings, Bell, ArrowUpRight, ArrowDownRight, Search, Filter, Minus, Plus, Check, X, Loader2, Landmark, OctagonX, Banknote, Clock, CheckCircle } from 'lucide-react'
+import { Calendar, DollarSign, Users, Eye, MoreHorizontal, RefreshCw, BarChart3, Shield, Settings, Bell, ArrowUpRight, ArrowDownRight, Search, Filter, Minus, Plus, Check, X, Loader2, Landmark, OctagonX, Banknote, Clock, CheckCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PageTransition from '../components/PageTransition'
 import AdminChatSection from '../components/AdminChatSection'
@@ -15,9 +15,6 @@ const defaultStats = [
   { label: 'Lượt xem', value: '0', change: 'Hiện đang trống', up: false, icon: Eye, color: 'bg-orange-500', lightColor: 'bg-orange-50' },
 ]
 
-
-
-const topDestinations: { name: string; bookings: number; revenue: string; pct: number; image: string }[] = []
 
 const revenueMonths = [
   { month: 'T1', value: 45 }, { month: 'T2', value: 58 }, { month: 'T3', value: 72 },
@@ -238,42 +235,6 @@ function RevenueChart() {
   )
 }
 
-function DonutChart() {
-  const circleRef = useRef<SVGCircleElement>(null)
-
-  useEffect(() => {
-    if (!circleRef.current) return
-    gsap.fromTo(
-      circleRef.current,
-      { strokeDashoffset: 251 },
-      { strokeDashoffset: 251 * 0.28, duration: 1.5, ease: 'power3.out', delay: 0.8 }
-    )
-  }, [])
-
-  return (
-    <div className="relative w-28 h-28 mx-auto mb-4">
-      <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-        <circle cx="50" cy="50" r="40" fill="none" stroke="#f1f5f9" strokeWidth="10" />
-        <circle
-          ref={circleRef}
-          cx="50" cy="50" r="40" fill="none"
-          stroke="url(#donutGrad)" strokeWidth="10" strokeLinecap="round"
-          strokeDasharray="251" strokeDashoffset="251"
-        />
-        <defs>
-          <linearGradient id="donutGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#6366f1" />
-            <stop offset="100%" stopColor="#8b5cf6" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-lg font-black">72%</span>
-        <span className="text-[9px] text-text-muted">Tỷ lệ lấp đầy</span>
-      </div>
-    </div>
-  )
-}
 
 export default function AdminDashboard() {
   const [profiles, setProfiles] = useState<Profile[]>([])
