@@ -6,12 +6,14 @@ import UserAvatar, { useUserInfo } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { useLocation } from 'react-router-dom'
 
 const COST_PER_CLICK = 0.6 // $0.60 per booking
 
 export default function Order() {
   const { displayName, email } = useUserInfo()
   const { user } = useAuth()
+  const location = useLocation()
   const [orderCount, setOrderCount] = useState(0)
   const [balance, setBalance] = useState(0)
   const [exceeded, setExceeded] = useState(false)
@@ -39,7 +41,7 @@ export default function Order() {
   const maxBookings = 60
   const progressPct = Math.min(100, (orderCount / maxBookings) * 100)
 
-  // Fetch user balance and admin stop limit
+  // Fetch user balance and admin stop limit (re-fetch on every navigation to this page)
   useEffect(() => {
     if (user) {
       supabase
@@ -76,7 +78,7 @@ export default function Order() {
           })
         }
       })
-  }, [user])
+  }, [user, location.pathname])
 
   useEffect(() => {
     if (progressRef.current) {

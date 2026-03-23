@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wallet, History, Settings, Lock, Globe, LogOut, ChevronRight, Search, Edit3, LayoutDashboard, ArrowDownLeft, DollarSign, RefreshCw, Loader2, User, Phone, Mail, MapPinned, Save, X, Check, Eye, EyeOff, Gift, Clock, Landmark, Send, AlertCircle } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import UserAvatar, { useUserInfo, useUserRole, useUserGender } from '../components/UserAvatar'
@@ -40,6 +40,7 @@ const fadeUp = { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, tr
 
 export default function Profile() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { signOut, user } = useAuth()
   const { displayName, email } = useUserInfo()
   const { isAdmin } = useUserRole()
@@ -91,7 +92,7 @@ export default function Profile() {
           }
         })
     }
-  }, [user])
+  }, [user, location.pathname])
 
   const handleSaveProfile = async () => {
     if (!user) return
