@@ -1,23 +1,23 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { Eye, EyeOff, Mail, Lock, Plane, Loader2, User, Ticket, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, Lock, Plane, Loader2, User, Ticket } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
-type AuthMode = 'login' | 'register' | 'forgot'
+type AuthMode = 'login' | 'register'
 
 export default function Login() {
   const navigate = useNavigate()
   const { signIn, signUp, signInWithGoogle, user, loading: authLoading } = useAuth()
 
   const [mode, setMode] = useState<AuthMode>('login')
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [inviteCode, setInviteCode] = useState('')
-  const [forgotEmail, setForgotEmail] = useState('')
+
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
@@ -35,7 +35,7 @@ export default function Login() {
     setError(null)
     setSuccess(null)
 
-    if (!email || !password) {
+    if (!username || !password) {
       setError('Vui lòng điền đầy đủ thông tin')
       return
     }
@@ -74,15 +74,15 @@ export default function Login() {
     setLoading(true)
 
     if (mode === 'login') {
-      const { error } = await signIn(email, password)
+      const { error } = await signIn(username, password)
       if (error) {
-        setError(error === 'Invalid login credentials' ? 'Email hoặc mật khẩu không đúng' : error)
+        setError(error === 'Invalid login credentials' ? 'Tên đăng nhập hoặc mật khẩu không đúng' : error)
         setLoading(false)
       } else {
         navigate('/home')
       }
     } else {
-      const { error } = await signUp(email, password, displayName)
+      const { error } = await signUp(username, password, displayName || username)
       if (error) {
         setError(error)
         setLoading(false)
@@ -93,34 +93,14 @@ export default function Login() {
           .from('invite_codes')
           .update({ status: 'used', used_by: userData?.user?.id || null, used_at: new Date().toISOString() })
           .eq('code', inviteCode.trim().toUpperCase())
-        setSuccess('Đăng ký thành công! Kiểm tra email để xác nhận tài khoản.')
+        setSuccess('Đăng ký thành công! Đang chuyển hướng...')
+        setTimeout(() => { setMode('login') }, 1500)
         setLoading(false)
       }
     }
   }
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSuccess(null)
 
-    if (!forgotEmail) {
-      setError('Vui lòng nhập email của bạn')
-      return
-    }
-
-    setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    })
-    setLoading(false)
-
-    if (error) {
-      setError(error.message)
-    } else {
-      setSuccess('Đã gửi email đặt lại mật khẩu! Vui lòng kiểm tra hộp thư của bạn.')
-    }
-  }
 
   const handleGoogleLogin = async () => {
     await signInWithGoogle()
@@ -134,7 +114,7 @@ export default function Login() {
     setConfirmPassword('')
     setDisplayName('')
     setInviteCode('')
-    setForgotEmail('')
+    setUsername('')
   }
 
   return (
@@ -188,84 +168,7 @@ export default function Login() {
             className="w-full max-w-[420px] bg-white/80 backdrop-blur-2xl rounded-3xl p-8 lg:p-10 border border-white/40 shadow-2xl"
           >
             <AnimatePresence mode="wait">
-            {mode === 'forgot' ? (
-              /* ── Forgot Password View (Desktop) ── */
-              <motion.div
-                key="forgot-desktop"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.3 }}
-              >
-                <button
-                  onClick={() => switchMode('login')}
-                  className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700 text-sm font-medium mb-6 transition-colors cursor-pointer"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Quay lại đăng nhập
-                </button>
-
-                <h2 className="text-gray-900 text-xl font-bold mb-2">Quên mật khẩu?</h2>
-                <p className="text-gray-500 text-sm mb-6">
-                  Nhập email của bạn và chúng tôi sẽ gửi link đặt lại mật khẩu.
-                </p>
-
-                {/* Error/Success messages */}
-                <AnimatePresence>
-                  {error && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3 mb-4"
-                    >
-                      {error}
-                    </motion.div>
-                  )}
-                  {success && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="bg-green-50 border border-green-200 text-green-600 text-sm rounded-xl px-4 py-3 mb-4"
-                    >
-                      {success}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <form onSubmit={handleForgotPassword} className="space-y-4">
-                  <div>
-                    <label className="block text-gray-700 text-sm font-medium mb-1.5">Email</label>
-                    <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
-                      <input
-                        type="email"
-                        placeholder="Nhập email của bạn"
-                        value={forgotEmail}
-                        onChange={(e) => setForgotEmail(e.target.value)}
-                        className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm placeholder:text-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all duration-300"
-                      />
-                    </div>
-                  </div>
-
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.98 }}
-                    disabled={loading}
-                    type="submit"
-                    className="w-full py-3.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                  >
-                    {loading ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      'GỬI LINK ĐẶT LẠI'
-                    )}
-                  </motion.button>
-                </form>
-              </motion.div>
-            ) : (
-              /* ── Login / Register View (Desktop) ── */
+              {/* ── Login / Register View (Desktop) ── */}
               <motion.div
                 key="auth-desktop"
                 initial={{ opacity: 0, x: -20 }}
@@ -346,16 +249,16 @@ export default function Login() {
                 )}
               </AnimatePresence>
 
-              {/* Email */}
+              {/* Tên đăng nhập */}
               <div>
-                <label className="block text-gray-700 text-sm font-medium mb-1.5">Email</label>
+                <label className="block text-gray-700 text-sm font-medium mb-1.5">Tên đăng nhập</label>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
                   <input
-                    type="email"
-                    placeholder="Nhập email của bạn"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    placeholder="Nhập tên đăng nhập"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm placeholder:text-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all duration-300"
                   />
                 </div>
@@ -439,14 +342,7 @@ export default function Login() {
                 )}
               </AnimatePresence>
 
-              {/* Remember me / Forgot password (login only) */}
-              {mode === 'login' && (
-                <div className="flex items-center justify-end">
-                  <button type="button" onClick={() => switchMode('forgot')} className="text-primary text-sm font-medium hover:text-primary-dark transition-colors cursor-pointer">
-                    Quên mật khẩu?
-                  </button>
-                </div>
-              )}
+
 
               {/* Submit button */}
               <motion.button
@@ -496,7 +392,6 @@ export default function Login() {
               </button>
             </p>
               </motion.div>
-            )}
             </AnimatePresence>
           </motion.div>
         </div>
@@ -552,8 +447,7 @@ export default function Login() {
 
         {/* White card body */}
         <div className="flex-1 bg-white rounded-t-[28px] -mt-5 relative z-10 px-6 pt-6 pb-8 flex flex-col">
-          {/* Tab switcher (hidden in forgot mode) */}
-          {mode !== 'forgot' && (
+          {/* Tab switcher */}
           <div className="flex bg-gray-100 rounded-2xl p-1 mb-6">
             <button
               onClick={() => switchMode('login')}
@@ -576,7 +470,6 @@ export default function Login() {
               Đăng ký
             </button>
           </div>
-          )}
 
           {/* Error/Success messages */}
           <AnimatePresence>
@@ -602,49 +495,6 @@ export default function Login() {
             )}
           </AnimatePresence>
 
-          {/* ── Forgot Password View (Mobile) ── */}
-          {mode === 'forgot' && (
-            <div className="flex-1 flex flex-col">
-              <button
-                onClick={() => switchMode('login')}
-                className="flex items-center gap-1.5 text-gray-500 hover:text-gray-700 text-sm font-medium mb-4 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Quay lại đăng nhập
-              </button>
-
-              <p className="text-gray-500 text-sm mb-5">
-                Nhập email của bạn và chúng tôi sẽ gửi link đặt lại mật khẩu.
-              </p>
-
-              <form onSubmit={handleForgotPassword} className="space-y-4">
-                <div>
-                  <label className="block text-text-primary text-sm font-semibold mb-1.5">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-text-muted" />
-                    <input
-                      type="email"
-                      placeholder="Nhập email của bạn"
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm placeholder:text-text-muted focus:border-primary focus:bg-white transition-all duration-300"
-                    />
-                  </div>
-                </div>
-
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  disabled={loading}
-                  type="submit"
-                  className="w-full mt-6 py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-sm rounded-full shadow-lg shadow-orange-500/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'GỬI LINK ĐẶT LẠI'}
-                </motion.button>
-              </form>
-            </div>
-          )}
-
-          {mode !== 'forgot' && (
           <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
             <div className="space-y-4">
               {/* Display Name (register only) */}
@@ -671,16 +521,16 @@ export default function Login() {
                 )}
               </AnimatePresence>
 
-              {/* Email */}
+              {/* Tên đăng nhập */}
               <div>
-                <label className="block text-text-primary text-sm font-semibold mb-1.5">Email</label>
+                <label className="block text-text-primary text-sm font-semibold mb-1.5">Tên đăng nhập</label>
                 <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-text-muted" />
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-text-muted" />
                   <input
-                    type="email"
-                    placeholder="Nhập email của bạn"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    placeholder="Nhập tên đăng nhập"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
                     className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm placeholder:text-text-muted focus:border-primary focus:bg-white transition-all duration-300"
                   />
                 </div>
@@ -764,68 +614,6 @@ export default function Login() {
                 )}
               </AnimatePresence>
 
-              {/* Remember me / Forgot password (login only) */}
-              {mode === 'login' && (
-                <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={() => setRememberMe(!rememberMe)}
-                      className="w-4 h-4 rounded border-gray-300 text-primary accent-primary cursor-pointer"
-                    />
-                    <span className="text-text-secondary text-xs font-medium">Nhớ mật khẩu</span>
-                  </label>
-                  <button type="button" onClick={() => switchMode('forgot')} className="text-primary text-xs font-semibold cursor-pointer">
-                    Quên mật khẩu?
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Submit button */}
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              disabled={loading}
-              type="submit"
-              className="w-full mt-6 py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-sm rounded-full shadow-lg shadow-orange-500/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-            >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : mode === 'login' ? 'ĐĂNG NHẬP' : 'ĐĂNG KÝ'}
-            </motion.button>
-
-            {/* Divider */}
-            <div className="flex items-center gap-4 my-5">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-text-muted text-xs">Hoặc tiếp tục với</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-
-            {/* Social buttons */}
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="w-full py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors cursor-pointer"
-            >
-              <svg className="w-4.5 h-4.5" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-              </svg>
-              Đăng nhập với Google
-            </button>
-
-            {/* Toggle mode */}
-            <p className="text-center mt-5 mb-3 text-text-secondary text-sm">
-              {mode === 'login' ? 'Chưa có tài khoản? ' : 'Đã có tài khoản? '}
-              <button
-                type="button"
-                onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
-                className="text-primary font-bold hover:underline cursor-pointer"
-              >
-                {mode === 'login' ? 'Tạo tài khoản' : 'Đăng nhập'}
-              </button>
-            </p>
           </form>
           )}
         </div>

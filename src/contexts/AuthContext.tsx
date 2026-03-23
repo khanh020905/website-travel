@@ -8,8 +8,8 @@ interface AuthContextType {
   loading: boolean
   isRecovery: boolean
   clearRecovery: () => void
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>
-  signUp: (email: string, password: string, displayName?: string) => Promise<{ error: string | null }>
+  signIn: (username: string, password: string) => Promise<{ error: string | null }>
+  signUp: (username: string, password: string, displayName?: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   signInWithGoogle: () => Promise<void>
 }
@@ -49,18 +49,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearRecovery = () => setIsRecovery(false)
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (username: string, password: string) => {
+    const email = `${username.toLowerCase().replace(/\s+/g, '_')}@travel.local`
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error?.message ?? null }
   }
 
-  const signUp = async (email: string, password: string, displayName?: string) => {
+  const signUp = async (username: string, password: string, displayName?: string) => {
+    const email = `${username.toLowerCase().replace(/\s+/g, '_')}@travel.local`
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
-          display_name: displayName || email.split('@')[0],
+          display_name: displayName || username,
         },
       },
     })
