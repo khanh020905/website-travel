@@ -12,7 +12,10 @@ const COST_PER_CLICK = 0.6 // $0.60 per booking
 export default function Order() {
   const { displayName, email } = useUserInfo()
   const { user } = useAuth()
-  const [orderCount, setOrderCount] = useState(0)
+  const [orderCount, setOrderCount] = useState(() => {
+    const saved = sessionStorage.getItem(`order_count_${user?.id}`)
+    return saved ? parseInt(saved) : 0
+  })
   const [balance, setBalance] = useState(0)
   const [exceeded, setExceeded] = useState(false)
   const [insufficientBalance, setInsufficientBalance] = useState(false)
@@ -151,7 +154,11 @@ export default function Order() {
       balance_after: newBalance,
     })
     setBalance(newBalance)
-    setOrderCount((prev) => prev + 1)
+    setOrderCount((prev) => {
+      const next = prev + 1
+      if (user) sessionStorage.setItem(`order_count_${user.id}`, String(next))
+      return next
+    })
     setExceeded(false)
     setInsufficientBalance(false)
     setShowConfirm(false)
