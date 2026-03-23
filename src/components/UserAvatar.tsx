@@ -52,8 +52,44 @@ export function useUserRole() {
 }
 
 /**
+ * Hook to get user's gender from profiles.
+ * Uses custom events so all UserAvatar instances update in realtime.
+ */
+export function useUserGender() {
+  const { user } = useAuth()
+  const [gender, setGenderState] = useState<string>('')
+
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('profiles')
+      .select('gender')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }: { data: { gender: string } | null }) => {
+        if (data?.gender) setGenderState(data.gender)
+      })
+
+    // Listen for gender changes from other components
+    const handler = (e: Event) => {
+      setGenderState((e as CustomEvent).detail)
+    }
+    window.addEventListener('gender-changed', handler)
+    return () => window.removeEventListener('gender-changed', handler)
+  }, [user])
+
+  const setGender = (g: string) => {
+    setGenderState(g)
+    window.dispatchEvent(new CustomEvent('gender-changed', { detail: g }))
+  }
+
+  return { gender, setGender }
+}
+
+/**
  * Reusable avatar component that shows:
  * - Google profile picture if available
+ * - Gender-based avatar (male/female) if gender is set
  * - First letter initial on a gradient background otherwise
  */
 export default function UserAvatar({
@@ -66,7 +102,9 @@ export default function UserAvatar({
   borderClass?: string
 }) {
   const { avatarUrl, initial } = useUserInfo()
+  const { gender } = useUserGender()
 
+  // Google avatar takes priority
   if (avatarUrl) {
     return (
       <div
@@ -83,6 +121,24 @@ export default function UserAvatar({
     )
   }
 
+  // Gender-based avatar
+  if (gender === 'male' || gender === 'female') {
+    const avatarSrc = gender === 'male' ? '/images/avatar_male.png' : '/images/avatar_female.png'
+    return (
+      <div
+        className={`rounded-full overflow-hidden ${borderClass} ${className}`}
+        style={{ width: size, height: size }}
+      >
+        <img
+          src={avatarSrc}
+          alt={gender === 'male' ? 'Nam' : 'Nữ'}
+          className="w-full h-full object-cover"
+        />
+      </div>
+    )
+  }
+
+  // Fallback: initial letter
   return (
     <div
       className={`rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white font-bold ${borderClass} ${className}`}

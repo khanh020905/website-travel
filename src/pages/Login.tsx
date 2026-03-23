@@ -1,100 +1,9 @@
-import { useState, useRef } from 'react'
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, Navigate } from 'react-router-dom'
-import { Eye, EyeOff, Mail, Lock, Plane, ChevronsRight, Loader2, User, Ticket, ArrowLeft } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, Plane, Loader2, User, Ticket, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-
-// ─── Swipe-to-Submit Button ────────────────────────────
-function SwipeButton({ loading, label, onSwipeComplete }: {
-  loading: boolean
-  label: string
-  onSwipeComplete: () => void
-}) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const x = useMotionValue(0)
-  const [swiped, setSwiped] = useState(false)
-
-  const maxDrag = 260 // max swipe distance
-  const threshold = maxDrag * 0.7
-
-  // Arrow opacity fades as you drag
-  const arrowOpacity = useTransform(x, [0, threshold], [1, 0])
-  // Text opacity fades
-  const textOpacity = useTransform(x, [0, threshold * 0.5], [1, 0])
-  // Background fill as progress
-  const bgWidth = useTransform(x, [0, maxDrag], ['0%', '100%'])
-
-  const handleDragEnd = () => {
-    if (x.get() >= threshold) {
-      setSwiped(true)
-      onSwipeComplete()
-      // Reset after a delay
-      setTimeout(() => {
-        setSwiped(false)
-        x.set(0)
-      }, 2000)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="w-full mt-6 py-4 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/30">
-        <Loader2 className="w-5 h-5 animate-spin text-white" />
-      </div>
-    )
-  }
-
-  return (
-    <div
-      ref={containerRef}
-      className="relative w-full mt-6 h-[52px] bg-gradient-to-r from-orange-500 to-red-500 rounded-full shadow-lg shadow-orange-500/30 overflow-hidden select-none"
-    >
-      {/* Success fill */}
-      <motion.div
-        className="absolute inset-0 bg-green-500 rounded-full"
-        style={{ width: swiped ? '100%' : bgWidth }}
-        transition={{ duration: 0.3 }}
-      />
-
-      {/* Label text */}
-      <motion.span
-        style={{ opacity: swiped ? 0 : textOpacity }}
-        className="absolute inset-0 flex items-center justify-center text-white font-bold text-sm pointer-events-none"
-      >
-        {swiped ? '✓' : label}
-      </motion.span>
-
-      {/* Draggable thumb */}
-      {!swiped && (
-        <motion.div
-          drag="x"
-          dragConstraints={{ left: 0, right: maxDrag }}
-          dragElastic={0}
-          dragMomentum={false}
-          onDragEnd={handleDragEnd}
-          style={{ x }}
-          className="absolute left-1.5 top-1/2 -translate-y-1/2 w-11 h-11 bg-white rounded-full shadow-md flex items-center justify-center cursor-grab active:cursor-grabbing z-10 touch-none"
-        >
-          <motion.div style={{ opacity: arrowOpacity }}>
-            <ChevronsRight className="w-5 h-5 text-orange-500" />
-          </motion.div>
-        </motion.div>
-      )}
-
-      {/* Success checkmark */}
-      {swiped && (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="absolute inset-0 flex items-center justify-center"
-        >
-          <span className="text-white text-xl font-bold">✓</span>
-        </motion.div>
-      )}
-    </div>
-  )
-}
 
 type AuthMode = 'login' | 'register' | 'forgot'
 
@@ -723,14 +632,14 @@ export default function Login() {
                   </div>
                 </div>
 
-                <SwipeButton
-                  loading={loading}
-                  label="Vuốt để gửi link đặt lại"
-                  onSwipeComplete={() => {
-                    const fakeEvent = { preventDefault: () => {} } as React.FormEvent
-                    handleForgotPassword(fakeEvent)
-                  }}
-                />
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  disabled={loading}
+                  type="submit"
+                  className="w-full mt-6 py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-sm rounded-full shadow-lg shadow-orange-500/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'GỬI LINK ĐẶT LẠI'}
+                </motion.button>
               </form>
             </div>
           )}
@@ -874,15 +783,15 @@ export default function Login() {
               )}
             </div>
 
-            {/* Swipe to submit */}
-            <SwipeButton
-              loading={loading}
-              label={mode === 'login' ? 'Vuốt để đăng nhập' : 'Vuốt để đăng ký'}
-              onSwipeComplete={() => {
-                const fakeEvent = { preventDefault: () => {} } as React.FormEvent
-                handleSubmit(fakeEvent)
-              }}
-            />
+            {/* Submit button */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              disabled={loading}
+              type="submit"
+              className="w-full mt-6 py-4 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-sm rounded-full shadow-lg shadow-orange-500/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : mode === 'login' ? 'ĐĂNG NHẬP' : 'ĐĂNG KÝ'}
+            </motion.button>
 
             {/* Divider */}
             <div className="flex items-center gap-4 my-5">

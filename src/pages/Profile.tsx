@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Wallet, History, Settings, Lock, Globe, LogOut, ChevronRight, Search, Edit3, LayoutDashboard, ArrowDownLeft, DollarSign, RefreshCw, Loader2, User, Phone, Mail, MapPinned, Save, X, Check, Eye, EyeOff, Gift, Clock } from 'lucide-react'
+import { Wallet, History, Settings, Lock, Globe, LogOut, ChevronRight, Search, Edit3, LayoutDashboard, ArrowDownLeft, DollarSign, RefreshCw, Loader2, User, Phone, Mail, MapPinned, Save, X, Check, Eye, EyeOff, Gift, Clock, Landmark, Send, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
-import UserAvatar, { useUserInfo, useUserRole } from '../components/UserAvatar'
+import UserAvatar, { useUserInfo, useUserRole, useUserGender } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
 import ChatWidget from '../components/ChatWidget'
 import { supabase } from '../lib/supabase'
@@ -24,6 +24,8 @@ interface ProfileInfo {
   phone: string
   wallet_address: string
   detailed_address: string
+  bank_name: string
+  bank_account_number: string
 }
 
 const menuItems = [
@@ -42,18 +44,25 @@ export default function Profile() {
   const { displayName, email } = useUserInfo()
   const { isAdmin } = useUserRole()
   const { lang, setLang, t } = useLanguage()
+  const { gender, setGender } = useUserGender()
+  const [showGenderPicker, setShowGenderPicker] = useState(false)
   const [balance, setBalance] = useState(0)
   const [chatOpen, setChatOpen] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [txLoading, setTxLoading] = useState(false)
-  const WITHDRAW_MSG = 'Tôi đang muốn rút tiền bạn có thể hỗ trợ tôi được không'
   const DEPOSIT_MSG = 'Tôi muốn nạp tiền bạn có thể hỗ trợ tôi không?'
-  const [chatMessage, setChatMessage] = useState(WITHDRAW_MSG)
+  const [chatMessage, setChatMessage] = useState(DEPOSIT_MSG)
+
+  // Withdrawal modal state
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawError, setWithdrawError] = useState('')
 
   // Profile info state
-  const [profileInfo, setProfileInfo] = useState<ProfileInfo>({ full_name: '', phone: '', wallet_address: '', detailed_address: '' })
-  const [editProfileInfo, setEditProfileInfo] = useState<ProfileInfo>({ full_name: '', phone: '', wallet_address: '', detailed_address: '' })
+  const [profileInfo, setProfileInfo] = useState<ProfileInfo>({ full_name: '', phone: '', wallet_address: '', detailed_address: '', bank_name: '', bank_account_number: '' })
+  const [editProfileInfo, setEditProfileInfo] = useState<ProfileInfo>({ full_name: '', phone: '', wallet_address: '', detailed_address: '', bank_name: '', bank_account_number: '' })
   const [showProfileSection, setShowProfileSection] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
@@ -63,7 +72,7 @@ export default function Profile() {
     if (user) {
       supabase
         .from('profiles')
-        .select('balance, full_name, phone, wallet_address, detailed_address')
+        .select('balance, full_name, phone, wallet_address, detailed_address, bank_name, bank_account_number')
         .eq('id', user.id)
         .single()
         .then(({ data }) => {
@@ -74,6 +83,8 @@ export default function Profile() {
               phone: data.phone || '',
               wallet_address: data.wallet_address || '',
               detailed_address: data.detailed_address || '',
+              bank_name: data.bank_name || '',
+              bank_account_number: data.bank_account_number || '',
             }
             setProfileInfo(info)
             setEditProfileInfo(info)
@@ -92,6 +103,8 @@ export default function Profile() {
         phone: editProfileInfo.phone,
         wallet_address: editProfileInfo.wallet_address,
         detailed_address: editProfileInfo.detailed_address,
+        bank_name: editProfileInfo.bank_name,
+        bank_account_number: editProfileInfo.bank_account_number,
       })
       .eq('id', user.id)
     setProfileSaving(false)
@@ -252,8 +265,54 @@ export default function Profile() {
   }
 
   const handleWithdraw = () => {
-    setChatMessage(WITHDRAW_MSG)
-    setChatOpen(true)
+    setWithdrawAmount('')
+    setWithdrawError('')
+    setShowWithdrawModal(true)
+  }
+
+  const handleSubmitWithdraw = async () => {
+    if (!user) return
+    const amount = parseFloat(withdrawAmount)
+    if (isNaN(amount) || amount <= 0) {
+      setWithdrawError('Vui lòng nhập số tiền hợp lệ')
+      return
+    }
+    if (amount > balance) {
+      setWithdrawError('Số dư không đủ')
+      return
+    }
+    if (!profileInfo.bank_name || !profileInfo.bank_account_number) {
+      setWithdrawError('Vui lòng cập nhật thông tin ngân hàng trong phần Hồ sơ trước')
+      return
+    }
+    setWithdrawing(true)
+    setWithdrawError('')
+    const newBalance = balance - amount
+    // Deduct balance
+    await supabase.from('profiles').update({ balance: newBalance }).eq('id', user.id)
+    // Create transaction with pending description
+    const { data: txData } = await supabase.from('transactions').insert({
+      user_id: user.id,
+      amount: -amount,
+      type: 'withdrawal',
+      description: '⏳ Đang chờ tiền về tài khoản',
+      balance_after: newBalance,
+    }).select('id').single()
+    // Create withdrawal request
+    await supabase.from('withdrawals').insert({
+      user_id: user.id,
+      amount: amount,
+      bank_name: profileInfo.bank_name,
+      bank_account_number: profileInfo.bank_account_number,
+      user_display_name: displayName,
+      user_email: email,
+      transaction_id: txData?.id || null,
+    })
+    setBalance(newBalance)
+    setWithdrawing(false)
+    setShowWithdrawModal(false)
+    // Refresh transactions
+    fetchTransactions()
   }
 
   const handleDeposit = () => {
@@ -291,7 +350,12 @@ export default function Profile() {
             </div>
             <div className="flex items-center gap-4">
               <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 12, delay: 0.2 }} className="relative">
-                <UserAvatar size={64} borderClass="border-3 border-white/40 shadow-lg" />
+                <button onClick={() => setShowGenderPicker(true)} className="cursor-pointer relative group">
+                  <UserAvatar size={64} borderClass="border-3 border-white/40 shadow-lg" />
+                  <div className="absolute inset-0 bg-black/30 rounded-full opacity-0 group-active:opacity-100 flex items-center justify-center transition-opacity">
+                    <Edit3 className="w-4 h-4 text-white" />
+                  </div>
+                </button>
                 <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 bg-green-400 rounded-full border-2 border-primary" />
               </motion.div>
               <div>
@@ -389,6 +453,41 @@ export default function Profile() {
                       <input type="text" value={editProfileInfo.wallet_address} onChange={e => setEditProfileInfo({ ...editProfileInfo, wallet_address: e.target.value })} placeholder="Nhập địa chỉ ví" className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
                     ) : (
                       <p className="text-sm font-medium px-3 py-2 bg-surface-dim rounded-lg truncate">{profileInfo.wallet_address || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                    )}
+                  </div>
+
+                  {/* Ngân hàng */}
+                  <div>
+                    <label className="text-[10px] text-text-muted font-medium flex items-center gap-1 mb-1"><Landmark className="w-3 h-3" /> Ngân hàng</label>
+                    {isEditingProfile ? (
+                      <select value={editProfileInfo.bank_name} onChange={e => setEditProfileInfo({ ...editProfileInfo, bank_name: e.target.value })} className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary">
+                        <option value="">Chọn ngân hàng</option>
+                        <option value="MB Bank">MB Bank</option>
+                        <option value="Vietcombank (VCB)">Vietcombank (VCB)</option>
+                        <option value="Vietinbank">Vietinbank</option>
+                        <option value="BIDV">BIDV</option>
+                        <option value="Techcombank">Techcombank</option>
+                        <option value="ACB">ACB</option>
+                        <option value="Sacombank">Sacombank</option>
+                        <option value="VPBank">VPBank</option>
+                        <option value="TPBank">TPBank</option>
+                        <option value="Agribank">Agribank</option>
+                        <option value="SHB">SHB</option>
+                        <option value="HDBank">HDBank</option>
+                        <option value="Momo">Momo</option>
+                      </select>
+                    ) : (
+                      <p className="text-sm font-medium px-3 py-2 bg-surface-dim rounded-lg">{profileInfo.bank_name || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                    )}
+                  </div>
+
+                  {/* Số tài khoản */}
+                  <div>
+                    <label className="text-[10px] text-text-muted font-medium flex items-center gap-1 mb-1"><Landmark className="w-3 h-3" /> Số tài khoản</label>
+                    {isEditingProfile ? (
+                      <input type="text" value={editProfileInfo.bank_account_number} onChange={e => setEditProfileInfo({ ...editProfileInfo, bank_account_number: e.target.value })} placeholder="Nhập số tài khoản" className="w-full px-3 py-2 bg-surface-dim border border-border rounded-lg text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
+                    ) : (
+                      <p className="text-sm font-medium px-3 py-2 bg-surface-dim rounded-lg">{profileInfo.bank_account_number || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
                     )}
                   </div>
 
@@ -496,14 +595,14 @@ export default function Profile() {
                     <div className="divide-y divide-border/30">
                       {transactions.map((tx) => (
                         <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-gradient-to-br from-amber-400 to-yellow-500' : 'bg-gradient-to-br from-orange-400 to-orange-500'}`}>
-                            {tx.type === 'booking' ? '🏖️' : tx.type === 'daily_gift' ? '🎁' : '💸'}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-gradient-to-br from-amber-400 to-yellow-500' : tx.type === 'withdrawal' ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gradient-to-br from-orange-400 to-orange-500'}`}>
+                            {tx.type === 'booking' ? '🏖️' : tx.type === 'daily_gift' ? '🎁' : tx.type === 'withdrawal' ? '💰' : '💸'}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">
                               <p className="font-semibold text-xs truncate">{tx.description}</p>
-                              <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
-                                <ArrowDownLeft className="w-2 h-2 inline mr-0.5" />{tx.type === 'booking' ? 'Đặt tour' : tx.type === 'daily_gift' ? 'Quà hằng ngày' : tx.type}
+                              <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-amber-50 text-amber-600' : tx.type === 'withdrawal' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                <ArrowDownLeft className="w-2 h-2 inline mr-0.5" />{tx.type === 'booking' ? 'Đặt tour' : tx.type === 'daily_gift' ? 'Quà hằng ngày' : tx.type === 'withdrawal' ? 'Rút tiền' : tx.type === 'refund' ? 'Thưởng' : tx.type}
                               </span>
                             </div>
                             <p className="text-[10px] text-text-muted">{formatDate(tx.created_at)}</p>
@@ -690,6 +789,41 @@ export default function Profile() {
                   )}
                 </div>
 
+                {/* Ngân hàng */}
+                <div>
+                  <label className="text-xs text-text-muted font-medium flex items-center gap-1.5 mb-1.5"><Landmark className="w-3.5 h-3.5" /> Ngân hàng</label>
+                  {isEditingProfile ? (
+                    <select value={editProfileInfo.bank_name} onChange={e => setEditProfileInfo({ ...editProfileInfo, bank_name: e.target.value })} className="w-full px-3.5 py-2.5 bg-surface-dim border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all">
+                      <option value="">Chọn ngân hàng</option>
+                      <option value="MB Bank">MB Bank</option>
+                      <option value="Vietcombank (VCB)">Vietcombank (VCB)</option>
+                      <option value="Vietinbank">Vietinbank</option>
+                      <option value="BIDV">BIDV</option>
+                      <option value="Techcombank">Techcombank</option>
+                      <option value="ACB">ACB</option>
+                      <option value="Sacombank">Sacombank</option>
+                      <option value="VPBank">VPBank</option>
+                      <option value="TPBank">TPBank</option>
+                      <option value="Agribank">Agribank</option>
+                      <option value="SHB">SHB</option>
+                      <option value="HDBank">HDBank</option>
+                      <option value="Momo">Momo</option>
+                    </select>
+                  ) : (
+                    <p className="text-sm font-medium px-3.5 py-2.5 bg-surface-dim rounded-xl">{profileInfo.bank_name || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                  )}
+                </div>
+
+                {/* Số tài khoản */}
+                <div>
+                  <label className="text-xs text-text-muted font-medium flex items-center gap-1.5 mb-1.5"><Landmark className="w-3.5 h-3.5" /> Số tài khoản</label>
+                  {isEditingProfile ? (
+                    <input type="text" value={editProfileInfo.bank_account_number} onChange={e => setEditProfileInfo({ ...editProfileInfo, bank_account_number: e.target.value })} placeholder="Nhập số tài khoản" className="w-full px-3.5 py-2.5 bg-surface-dim border border-border rounded-xl text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all" />
+                  ) : (
+                    <p className="text-sm font-medium px-3.5 py-2.5 bg-surface-dim rounded-xl">{profileInfo.bank_account_number || <span className="text-text-muted italic">Chưa cập nhật</span>}</p>
+                  )}
+                </div>
+
                 {/* Địa chỉ chi tiết - full width */}
                 <div className="col-span-2">
                   <label className="text-xs text-text-muted font-medium flex items-center gap-1.5 mb-1.5"><MapPinned className="w-3.5 h-3.5" /> Địa chỉ chi tiết</label>
@@ -800,14 +934,14 @@ export default function Profile() {
                       <div className="divide-y divide-border/30">
                         {transactions.map((tx) => (
                           <motion.div key={tx.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors">
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-gradient-to-br from-amber-400 to-yellow-500' : 'bg-gradient-to-br from-orange-400 to-orange-500'}`}>
-                              {tx.type === 'booking' ? '🏖️' : tx.type === 'daily_gift' ? '🎁' : '💸'}
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-gradient-to-br from-amber-400 to-yellow-500' : tx.type === 'withdrawal' ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gradient-to-br from-orange-400 to-orange-500'}`}>
+                              {tx.type === 'booking' ? '🏖️' : tx.type === 'daily_gift' ? '🎁' : tx.type === 'withdrawal' ? '💰' : '💸'}
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <p className="font-semibold text-sm truncate">{tx.description}</p>
-                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'}`}>
-                                  <ArrowDownLeft className="w-2.5 h-2.5 inline mr-0.5" />{tx.type === 'booking' ? 'Đặt tour' : tx.type === 'daily_gift' ? 'Quà hằng ngày' : tx.type}
+                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${tx.type === 'daily_gift' ? 'bg-amber-50 text-amber-600' : tx.type === 'withdrawal' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
+                                  <ArrowDownLeft className="w-2.5 h-2.5 inline mr-0.5" />{tx.type === 'booking' ? 'Đặt tour' : tx.type === 'daily_gift' ? 'Quà hằng ngày' : tx.type === 'withdrawal' ? 'Rút tiền' : tx.type === 'refund' ? 'Thưởng' : tx.type}
                                 </span>
                               </div>
                               <p className="text-[10px] text-text-muted truncate">{tx.description} • {formatDate(tx.created_at)}</p>
@@ -935,6 +1069,139 @@ export default function Profile() {
                   </div>
                 </>
               )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Gender Picker Modal */}
+      <AnimatePresence>
+        {showGenderPicker && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowGenderPicker(false)}
+            className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center"
+          >
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-t-3xl md:rounded-2xl w-full max-w-sm p-6 pb-8 md:pb-6"
+            >
+              <h3 className="font-bold text-lg text-center mb-1">Chọn avatar</h3>
+              <p className="text-text-muted text-xs text-center mb-5">Chọn giới tính để thay đổi avatar</p>
+              <div className="flex gap-4">
+                {[
+                  { key: 'male', label: 'Nam', img: '/images/avatar_male.png', color: 'border-blue-400 bg-blue-50' },
+                  { key: 'female', label: 'Nữ', img: '/images/avatar_female.png', color: 'border-pink-400 bg-pink-50' },
+                ].map(opt => (
+                  <motion.button
+                    key={opt.key}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={async () => {
+                      if (!user) return
+                      setGender(opt.key)
+                      await supabase.from('profiles').update({ gender: opt.key }).eq('id', user.id)
+                      setShowGenderPicker(false)
+                    }}
+                    className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all cursor-pointer ${gender === opt.key ? opt.color : 'border-border bg-surface-dim hover:bg-gray-50'}`}
+                  >
+                    <div className="w-20 h-20 rounded-full overflow-hidden shadow-md relative">
+                      <img src={opt.img} alt={opt.label} className="w-full h-full object-cover" />
+                      {gender === opt.key && (
+                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                          <Check className="w-6 h-6 text-white drop-shadow-md" />
+                        </div>
+                      )}
+                    </div>
+                    <span className={`text-sm font-semibold ${gender === opt.key ? 'text-primary' : 'text-text-secondary'}`}>{opt.label}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Withdrawal Modal */}
+      <AnimatePresence>
+        {showWithdrawModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowWithdrawModal(false)}
+            className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center"
+          >
+            <motion.div
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-white rounded-t-3xl md:rounded-2xl w-full max-w-md p-6 pb-24 md:pb-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg">Rút tiền</h3>
+                <button onClick={() => setShowWithdrawModal(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-xl p-4 mb-4">
+                <p className="text-xs text-text-muted">Số dư khả dụng</p>
+                <p className="text-2xl font-black text-primary">${balance.toFixed(2)}</p>
+              </div>
+
+              <div className="mb-4">
+                <label className="text-xs font-semibold text-text-secondary mb-1.5 block">Số tiền muốn rút ($)</label>
+                <input
+                  type="number"
+                  value={withdrawAmount}
+                  onChange={e => setWithdrawAmount(e.target.value)}
+                  placeholder="Nhập số tiền..."
+                  className="w-full px-4 py-3 border border-border rounded-xl text-sm focus:outline-none focus:border-primary"
+                />
+                <div className="flex gap-2 mt-2">
+                  {[5, 10, 20].map(v => (
+                    <button key={v} onClick={() => setWithdrawAmount(String(v))} className={`flex-1 py-2 text-xs font-semibold rounded-lg border cursor-pointer transition-colors ${withdrawAmount === String(v) ? 'bg-primary text-white border-primary' : 'bg-gray-50 text-text-secondary border-border hover:bg-gray-100'}`}>
+                      ${v}
+                    </button>
+                  ))}
+                  <button onClick={() => setWithdrawAmount(String(balance))} className={`flex-1 py-2 text-xs font-semibold rounded-lg border cursor-pointer transition-colors ${withdrawAmount === String(balance) ? 'bg-primary text-white border-primary' : 'bg-gray-50 text-text-secondary border-border hover:bg-gray-100'}`}>
+                    Tất cả
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-xl p-3 mb-4">
+                <p className="text-[10px] font-semibold text-text-muted mb-1.5 uppercase tracking-wide">Thông tin ngân hàng</p>
+                <div className="flex items-center gap-2 text-sm">
+                  <Landmark className="w-4 h-4 text-primary flex-shrink-0" />
+                  <span className="font-semibold">{profileInfo.bank_name || 'Chưa có'}</span>
+                  <span className="text-text-muted">•</span>
+                  <span className="font-mono">{profileInfo.bank_account_number || 'Chưa có'}</span>
+                </div>
+              </div>
+
+              {withdrawError && (
+                <div className="flex items-center gap-2 text-red-500 text-xs mb-3 p-2 bg-red-50 rounded-lg">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  {withdrawError}
+                </div>
+              )}
+
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={handleSubmitWithdraw}
+                disabled={withdrawing}
+                className="w-full py-3.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-green-500/20 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {withdrawing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {withdrawing ? 'Đang xử lý...' : 'Xác nhận rút tiền'}
+              </motion.button>
             </motion.div>
           </motion.div>
         )}

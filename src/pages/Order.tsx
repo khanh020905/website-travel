@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, AlertTriangle, Send, X } from 'lucide-react'
+import { Search, AlertTriangle, Send, X, Gift } from 'lucide-react'
 import gsap from 'gsap'
 import UserAvatar, { useUserInfo } from '../components/UserAvatar'
 import PageTransition from '../components/PageTransition'
@@ -17,12 +17,19 @@ export default function Order() {
   const [exceeded, setExceeded] = useState(false)
   const [insufficientBalance, setInsufficientBalance] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
+  const [showPrize, setShowPrize] = useState(false)
+  const [prizeAmount, setPrizeAmount] = useState(0)
   const progressRef = useRef<HTMLDivElement>(null)
   const counterRef = useRef<HTMLSpanElement>(null)
 
-  // Hidden random limit: user will be stopped at a random number between 20-50
-  // UI still shows /60 but they can never actually reach 60
-  const hiddenLimitRef = useRef(Math.floor(Math.random() * 31) + 20) // 20 to 50
+  // Hidden stop limit set by admin from app_settings
+  // UI still shows /60 but actual limit is controlled by admin
+  const hiddenLimitRef = useRef(30) // default 30, will be overridden by admin setting
+
+  // Lock to prevent fast-clicking bypass
+  const processingRef = useRef(false)
+  // Flag to ensure prize is only awarded once
+  const prizeAwardedRef = useRef(false)
 
   // Each click costs $0.60
   const costPerClick = COST_PER_CLICK
@@ -30,7 +37,7 @@ export default function Order() {
   const maxBookings = 60
   const progressPct = Math.min(100, (orderCount / maxBookings) * 100)
 
-  // Fetch user balance
+  // Fetch user balance and admin stop limit
   useEffect(() => {
     if (user) {
       supabase
@@ -42,6 +49,17 @@ export default function Order() {
           if (data?.balance != null) setBalance(parseFloat(data.balance))
         })
     }
+    // Fetch admin-set stop limit
+    supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'tour_stop_limit')
+      .single()
+      .then(({ data }: { data: { value: string } | null }) => {
+        if (data?.value) {
+          hiddenLimitRef.current = parseInt(data.value) || 30
+        }
+      })
   }, [user])
 
   useEffect(() => {
@@ -50,23 +68,60 @@ export default function Order() {
     }
   }, [progressPct])
 
-  const handleClickOrder = () => {
-    // Use hidden random limit (20-50) instead of the displayed max (60)
-    if (orderCount + 1 > hiddenLimitRef.current) {
+  // Award prize when user reaches the limit (only once)
+  const awardPrize = async () => {
+    if (!user || prizeAwardedRef.current) {
+      // Already awarded — just show exceeded message
       setExceeded(true)
       setTimeout(() => setExceeded(false), 3000)
+      return
+    }
+    prizeAwardedRef.current = true
+    const prize = Math.round((Math.random() * 1 + 1) * 100) / 100 // $1.00 - $2.00
+    const newBalance = balance + prize
+    // Add prize to balance
+    await supabase.from('profiles').update({ balance: newBalance }).eq('id', user.id)
+    // Log prize transaction (using 'refund' type which is allowed in DB)
+    await supabase.from('transactions').insert({
+      user_id: user.id,
+      amount: prize,
+      type: 'refund',
+      description: `🎉 Trúng thưởng đặt tour`,
+      balance_after: newBalance,
+    })
+    setBalance(newBalance)
+    setPrizeAmount(prize)
+    setShowPrize(true)
+  }
+
+  const handleClickOrder = async () => {
+    // Prevent fast-clicking bypass
+    if (processingRef.current) return
+    // Use admin-set hidden limit instead of the displayed max (60)
+    if (orderCount + 1 > hiddenLimitRef.current) {
+      await awardPrize()
       return
     }
     if (balance < costPerClick) {
       setInsufficientBalance(true)
       setTimeout(() => setInsufficientBalance(false), 3000)
+      processingRef.current = false // Release lock
       return
     }
     setShowConfirm(true)
+    processingRef.current = false // Release lock if not proceeding to confirm
   }
 
   const handleConfirmOrder = async () => {
-    if (!user) return
+    if (!user || processingRef.current) return
+    processingRef.current = true
+    // Re-check limit before processing to prevent bypass
+    if (orderCount + 1 > hiddenLimitRef.current) {
+      await awardPrize()
+      setShowConfirm(false)
+      processingRef.current = false
+      return
+    }
     const newBalance = Math.max(0, balance - costPerClick)
     // Update balance
     await supabase.from('profiles').update({ balance: newBalance }).eq('id', user.id)
@@ -83,12 +138,14 @@ export default function Order() {
     setExceeded(false)
     setInsufficientBalance(false)
     setShowConfirm(false)
+    processingRef.current = false
     if (counterRef.current) {
       gsap.fromTo(counterRef.current, { scale: 1.3, color: '#22c55e' }, { scale: 1, color: '#0F172A', duration: 0.4, ease: 'back.out(2)' })
     }
   }
 
   return (
+    <>
     <PageTransition>
       {/* ===== MOBILE ===== */}
       <div className="md:hidden">
@@ -343,5 +400,78 @@ export default function Order() {
         </div>
       </div>
     </PageTransition>
+
+    {/* Prize Popup */}
+    <AnimatePresence>
+      {showPrize && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-6"
+        >
+          <motion.div
+            initial={{ scale: 0.5, opacity: 0, y: 40 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.5, opacity: 0, y: 40 }}
+            transition={{ type: 'spring', damping: 15, stiffness: 300 }}
+            className="bg-white rounded-3xl p-8 max-w-sm w-full text-center relative overflow-hidden"
+          >
+            {/* Confetti dots */}
+            {[...Array(12)].map((_, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, scale: 0, x: 0, y: 0 }}
+                animate={{
+                  opacity: [0, 1, 0],
+                  scale: [0, 1.5, 0],
+                  x: (Math.random() - 0.5) * 200,
+                  y: (Math.random() - 0.5) * 200,
+                }}
+                transition={{ duration: 1.5, delay: i * 0.08, repeat: Infinity, repeatDelay: 2 }}
+                className="absolute left-1/2 top-1/3 w-2 h-2 rounded-full"
+                style={{ backgroundColor: ['#f59e0b', '#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#ec4899'][i % 6] }}
+              />
+            ))}
+
+            <motion.div
+              initial={{ rotate: -10, scale: 0 }}
+              animate={{ rotate: 0, scale: 1 }}
+              transition={{ delay: 0.2, type: 'spring' }}
+              className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-orange-500/30"
+            >
+              <Gift className="w-10 h-10 text-white" />
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+              <h2 className="text-2xl font-black text-gray-900 mb-1">🎉 Chúc mừng!</h2>
+              <p className="text-gray-500 text-sm mb-4">Bạn đã trúng thưởng</p>
+            </motion.div>
+
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
+              className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl py-4 px-6 mb-6"
+            >
+              <p className="text-green-600 text-sm font-medium">Số tiền thưởng</p>
+              <p className="text-green-600 text-4xl font-black">${prizeAmount.toFixed(2)}</p>
+            </motion.div>
+
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.7 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowPrize(false)}
+              className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold text-sm rounded-2xl shadow-lg shadow-orange-500/30 cursor-pointer"
+            >
+              Tuyệt vời! 🎊
+            </motion.button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   )
 }

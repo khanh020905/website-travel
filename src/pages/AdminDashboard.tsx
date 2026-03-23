@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import gsap from 'gsap'
-import { Calendar, DollarSign, Users, Eye, MoreHorizontal, RefreshCw, BarChart3, PieChart, Shield, Settings, Bell, ArrowUpRight, ArrowDownRight, Search, Filter, Minus, Plus, Check, X, Loader2 } from 'lucide-react'
+import { Calendar, DollarSign, Users, Eye, MoreHorizontal, RefreshCw, BarChart3, PieChart, Shield, Settings, Bell, ArrowUpRight, ArrowDownRight, Search, Filter, Minus, Plus, Check, X, Loader2, Landmark, OctagonX, Banknote, Clock, CheckCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PageTransition from '../components/PageTransition'
 import AdminChatSection from '../components/AdminChatSection'
@@ -41,7 +41,23 @@ interface Profile {
   provider: string
   role: string
   balance: number
+  bank_name: string
+  bank_account_number: string
   created_at: string
+}
+
+interface Withdrawal {
+  id: string
+  user_id: string
+  amount: number
+  status: string
+  bank_name: string
+  bank_account_number: string
+  user_display_name: string
+  user_email: string
+  transaction_id: string | null
+  created_at: string
+  approved_at: string | null
 }
 
 function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdateBalance }: { profiles: Profile[]; loading: boolean; error: string | null; onRetry: () => void; compact?: boolean; onUpdateBalance?: (id: string, balance: number) => Promise<void> }) {
@@ -116,6 +132,9 @@ function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdat
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm truncate">{p.display_name || 'Hiện đang trống'}</p>
             <p className="text-text-muted text-[11px] truncate">{p.email || 'Hiện đang trống'}</p>
+            {p.bank_account_number && (
+              <p className="text-[10px] text-purple-600 font-medium flex items-center gap-0.5 mt-0.5"><Landmark className="w-2.5 h-2.5" /> {p.bank_name || 'N/A'} • {p.bank_account_number}</p>
+            )}
           </div>
 
           {/* Balance display/edit */}
@@ -331,6 +350,74 @@ export default function AdminDashboard() {
     setSavingPrice(false)
   }
 
+  // Tour stop limit settings
+  const [tourStopLimit, setTourStopLimit] = useState(30)
+  const [stopLimitInput, setStopLimitInput] = useState('30')
+  const [savingStopLimit, setSavingStopLimit] = useState(false)
+  const [stopLimitSaved, setStopLimitSaved] = useState(false)
+
+  useEffect(() => {
+    supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'tour_stop_limit')
+      .single()
+      .then(({ data }: { data: { value: string } | null }) => {
+        if (data?.value) {
+          setTourStopLimit(parseInt(data.value) || 30)
+          setStopLimitInput(String(parseInt(data.value) || 30))
+        }
+      })
+  }, [])
+
+  const saveStopLimit = async () => {
+    const val = parseInt(stopLimitInput)
+    if (isNaN(val) || val < 1 || val > 60) return
+    setSavingStopLimit(true)
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert({ key: 'tour_stop_limit', value: String(val), updated_at: new Date().toISOString() })
+    if (!error) {
+      setTourStopLimit(val)
+      setStopLimitSaved(true)
+      setTimeout(() => setStopLimitSaved(false), 2000)
+    }
+    setSavingStopLimit(false)
+  }
+
+  // Withdrawal management
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
+  const [withdrawalsLoading, setWithdrawalsLoading] = useState(true)
+  const [approvingId, setApprovingId] = useState<string | null>(null)
+
+  const fetchWithdrawals = async () => {
+    setWithdrawalsLoading(true)
+    const { data } = await supabase
+      .from('withdrawals')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (data) setWithdrawals(data)
+    setWithdrawalsLoading(false)
+  }
+
+  useEffect(() => { fetchWithdrawals() }, [])
+
+  const approveWithdrawal = async (w: Withdrawal) => {
+    setApprovingId(w.id)
+    await supabase.from('withdrawals').update({
+      status: 'approved',
+      approved_at: new Date().toISOString()
+    }).eq('id', w.id)
+    if (w.transaction_id) {
+      await supabase.from('transactions').update({
+        description: 'Kiểm tra tài khoản nhé ✅'
+      }).eq('id', w.transaction_id)
+    }
+    setApprovingId(null)
+    fetchWithdrawals()
+  }
+
   return (
     <PageTransition>
       {/* ===== MOBILE LAYOUT ===== */}
@@ -405,26 +492,34 @@ export default function AdminDashboard() {
             <p className="text-[10px] text-text-muted text-center mt-2">Hiện tại: <span className="font-bold text-green-600">${tourBasePrice.toFixed(2)}</span></p>
           </div>
 
-          <h3 className="font-bold text-sm mb-3 mt-6">Top điểm đến</h3>
-          {topDestinations.length > 0 ? (
-            <div className="space-y-2">
-              {topDestinations.slice(0, 3).map((dest) => (
-                <div key={dest.name} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-border/50">
-                  <div className="w-10 h-10 rounded-lg overflow-hidden"><img src={dest.image} alt={dest.name} className="w-full h-full object-cover" /></div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-xs">{dest.name}</p>
-                    <p className="text-text-muted text-[10px]">{dest.bookings} đặt chỗ</p>
-                  </div>
-                  <p className="text-xs font-bold text-primary">{dest.revenue}</p>
-                </div>
-              ))}
+          <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2"><OctagonX className="w-4 h-4 text-red-500" /> Giới hạn đặt tour</h3>
+          <div className="bg-white rounded-2xl p-4 border border-border/50 shadow-sm">
+            <p className="text-text-muted text-xs mb-1">Số lần đặt tour tối đa trước khi dừng:</p>
+            <p className="text-text-muted text-[10px] mb-3">User sẽ bị chặn khi đạt số này (hiển thị /60)</p>
+            <div className="flex items-center gap-2 mb-3">
+              <button onClick={() => setStopLimitInput(String(Math.max(1, parseInt(stopLimitInput || '0') - 1)))} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-lg active:bg-gray-200 cursor-pointer">-</button>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                max="60"
+                value={stopLimitInput}
+                onChange={(e) => setStopLimitInput(e.target.value)}
+                className="flex-1 text-center text-2xl font-black py-2 border border-border rounded-xl focus:border-primary focus:outline-none"
+              />
+              <button onClick={() => setStopLimitInput(String(Math.min(60, parseInt(stopLimitInput || '0') + 1)))} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-lg active:bg-gray-200 cursor-pointer">+</button>
             </div>
-          ) : (
-            <div className="bg-white rounded-2xl p-6 border border-border/50 shadow-sm text-center">
-              <p className="text-2xl mb-2">🗺️</p>
-              <p className="text-text-muted text-xs">Hiện đang trống</p>
-            </div>
-          )}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={saveStopLimit}
+              disabled={savingStopLimit}
+              className="w-full py-2.5 bg-red-500 text-white font-semibold text-sm rounded-xl disabled:opacity-50 cursor-pointer"
+            >
+              {savingStopLimit ? 'Đang lưu...' : stopLimitSaved ? '✅ Đã lưu!' : 'Lưu giới hạn'}
+            </motion.button>
+            <p className="text-[10px] text-text-muted text-center mt-2">Hiện tại: <span className="font-bold text-red-500">{tourStopLimit} lần</span></p>
+          </div>
+
 
           {/* User list - Mobile */}
           <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2"><Users className="w-4 h-4 text-purple-500" /> Người dùng {!profilesLoading && <span className="text-text-muted font-normal">({profiles.length})</span>}</h3>
@@ -436,6 +531,55 @@ export default function AdminDashboard() {
           <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2">💬 Tin nhắn</h3>
           <div className="mb-6">
             <AdminChatSection />
+          </div>
+
+          {/* Withdrawal Requests - Mobile */}
+          <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2"><Banknote className="w-4 h-4 text-green-500" /> Y&ecirc;u cầu r&uacute;t tiền {!withdrawalsLoading && withdrawals.filter(w => w.status === 'pending').length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{withdrawals.filter(w => w.status === 'pending').length}</span>}</h3>
+          <div className="bg-white rounded-2xl border border-border/50 shadow-sm mb-6 overflow-hidden">
+            {withdrawalsLoading ? (
+              <div className="flex items-center justify-center py-6"><Loader2 className="w-5 h-5 text-primary animate-spin" /></div>
+            ) : withdrawals.length === 0 ? (
+              <div className="text-center py-6"><p className="text-text-muted text-xs">Chưa c&oacute; y&ecirc;u cầu n&agrave;o</p></div>
+            ) : (
+              <div className="divide-y divide-border/30">
+                {withdrawals.map(w => (
+                  <div key={w.id} className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="font-semibold text-sm">{w.user_display_name}</p>
+                        <p className="text-[10px] text-text-muted">{w.user_email}</p>
+                      </div>
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${w.status === 'pending' ? 'bg-yellow-50 text-yellow-600' : 'bg-green-50 text-green-600'}`}>
+                        {w.status === 'pending' ? '⏳ Chờ duyệt' : '✅ Đ&atilde; duyệt'}
+                      </span>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-2.5 mb-2">
+                      <div className="flex items-center gap-2 text-xs">
+                        <Landmark className="w-3.5 h-3.5 text-primary" />
+                        <span className="font-semibold">{w.bank_name}</span>
+                        <span className="text-text-muted">•</span>
+                        <span className="font-mono">{w.bank_account_number}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-lg font-black text-green-600">${w.amount.toFixed(2)}</p>
+                      {w.status === 'pending' && (
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => approveWithdrawal(w)}
+                          disabled={approvingId === w.id}
+                          className="px-3 py-1.5 bg-green-500 text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {approvingId === w.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+                          Đ&atilde; chuyển khoản
+                        </motion.button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-text-muted mt-1">{new Date(w.created_at).toLocaleString('vi-VN')}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Invite Codes - Mobile */}
@@ -509,43 +653,6 @@ export default function AdminDashboard() {
             <RevenueChart />
           </motion.div>
 
-          {/* Top Destinations + Donut */}
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="bg-white rounded-2xl p-6 border border-border/50 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-base flex items-center gap-2"><PieChart className="w-5 h-5 text-purple-500" /> Top điểm đến</h3>
-              <button className="text-primary text-xs font-semibold cursor-pointer hover:underline">Xem tất cả</button>
-            </div>
-            <DonutChart />
-            {topDestinations.length > 0 ? (
-              <div className="space-y-3">
-                {topDestinations.map((dest, i) => (
-                  <motion.div key={dest.name} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 + i * 0.06 }} className="flex items-center gap-3 group cursor-pointer">
-                    <span className="text-xs font-bold text-text-muted w-4">{i + 1}</span>
-                    <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0 group-hover:scale-110 transition-transform">
-                      <img src={dest.image} alt={dest.name} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm">{dest.name}</p>
-                      <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${dest.pct}%` }}
-                          transition={{ duration: 0.8, delay: 0.6 + i * 0.1 }}
-                          className="h-1.5 bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
-                        />
-                      </div>
-                    </div>
-                    <p className="text-xs font-bold text-primary">{dest.revenue}</p>
-                  </motion.div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-6">
-                <p className="text-2xl mb-2">🗺️</p>
-                <p className="text-text-muted text-sm">Hiện đang trống</p>
-              </div>
-            )}
-          </motion.div>
         </div>
 
         {/* Recent Bookings Table */}
@@ -585,6 +692,40 @@ export default function AdminDashboard() {
           </div>
         </motion.div>
 
+        {/* Tour Stop Limit - Desktop */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.48 }} className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden mt-6">
+          <div className="flex items-center justify-between p-6 pb-4">
+            <h3 className="font-bold text-base flex items-center gap-2"><OctagonX className="w-5 h-5 text-red-500" /> Giới hạn đặt tour</h3>
+          </div>
+          <div className="px-6 pb-6">
+            <p className="text-text-muted text-sm mb-1">Số lần đặt tour tối đa trước khi dừng. User sẽ thấy /60 nhưng bị chặn tại số này.</p>
+            <p className="text-text-muted text-xs mb-4">Giới hạn: <span className="font-bold text-red-500">1 - 60</span></p>
+            <div className="flex items-center gap-4">
+              <button onClick={() => setStopLimitInput(String(Math.max(1, parseInt(stopLimitInput || '0') - 1)))} className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl transition-colors cursor-pointer">-</button>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                max="60"
+                value={stopLimitInput}
+                onChange={(e) => setStopLimitInput(e.target.value)}
+                className="w-36 text-center text-3xl font-black py-2 border-2 border-border rounded-xl focus:border-primary focus:outline-none transition-colors"
+              />
+              <button onClick={() => setStopLimitInput(String(Math.min(60, parseInt(stopLimitInput || '0') + 1)))} className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl transition-colors cursor-pointer">+</button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={saveStopLimit}
+                disabled={savingStopLimit}
+                className="px-6 py-3 bg-red-500 text-white font-semibold text-sm rounded-xl disabled:opacity-50 cursor-pointer hover:bg-red-600 transition-colors"
+              >
+                {savingStopLimit ? 'Đang lưu...' : stopLimitSaved ? '✅ Đã lưu!' : 'Lưu giới hạn'}
+              </motion.button>
+              <p className="text-sm text-text-muted">Hiện tại: <span className="font-bold text-red-500 text-lg">{tourStopLimit} lần</span></p>
+            </div>
+          </div>
+        </motion.div>
+
         {/* Users Section */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between p-6 pb-4">
@@ -599,6 +740,66 @@ export default function AdminDashboard() {
         {/* Chat Management - Desktop */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }} className="mt-6">
           <AdminChatSection />
+        </motion.div>
+
+        {/* Withdrawal Requests - Desktop */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.57 }} className="mt-6">
+          <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between p-6 pb-4">
+              <h3 className="font-bold text-base flex items-center gap-2">
+                <Banknote className="w-5 h-5 text-green-500" /> Y&ecirc;u cầu r&uacute;t tiền
+                {!withdrawalsLoading && withdrawals.filter(w => w.status === 'pending').length > 0 && <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{withdrawals.filter(w => w.status === 'pending').length} chờ</span>}
+              </h3>
+              <button onClick={fetchWithdrawals} className="flex items-center gap-1.5 text-primary text-xs font-semibold cursor-pointer hover:underline"><RefreshCw className="w-3.5 h-3.5" /> L&agrave;m mới</button>
+            </div>
+            <div className="max-h-[400px] overflow-y-auto">
+              {withdrawalsLoading ? (
+                <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 text-primary animate-spin" /></div>
+              ) : withdrawals.length === 0 ? (
+                <div className="text-center py-10"><p className="text-text-muted text-sm">Chưa c&oacute; y&ecirc;u cầu r&uacute;t tiền n&agrave;o</p></div>
+              ) : (
+                <div className="divide-y divide-border/30">
+                  {withdrawals.map(w => (
+                    <div key={w.id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50/50 transition-colors">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${w.status === 'pending' ? 'bg-gradient-to-br from-yellow-400 to-amber-500' : 'bg-gradient-to-br from-green-400 to-emerald-500'}`}>
+                        {w.status === 'pending' ? <Clock className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm">{w.user_display_name}</p>
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${w.status === 'pending' ? 'bg-yellow-50 text-yellow-600' : 'bg-green-50 text-green-600'}`}>
+                            {w.status === 'pending' ? '⏳ Chờ duyệt' : '✅ Đ&atilde; duyệt'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-text-muted">
+                          <Landmark className="w-3 h-3" />
+                          <span className="font-semibold text-text-secondary">{w.bank_name}</span>
+                          <span>&bull;</span>
+                          <span className="font-mono">{w.bank_account_number}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-black text-green-600">${w.amount.toFixed(2)}</p>
+                        <p className="text-[10px] text-text-muted">{new Date(w.created_at).toLocaleString('vi-VN')}</p>
+                      </div>
+                      {w.status === 'pending' && (
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => approveWithdrawal(w)}
+                          disabled={approvingId === w.id}
+                          className="px-4 py-2 bg-green-500 text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-50 hover:bg-green-600 transition-colors flex items-center gap-1.5"
+                        >
+                          {approvingId === w.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                          Đ&atilde; chuyển khoản
+                        </motion.button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </motion.div>
 
         {/* Invite Codes - Desktop */}
