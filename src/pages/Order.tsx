@@ -251,7 +251,7 @@ export default function Order() {
               {exceeded && (
                 <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
                   <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                  <p className="text-red-600 text-sm font-semibold">Hệ thống đang bận, vui lòng thử lại sau!</p>
+                  <p className="text-red-600 text-sm font-semibold">Vui lòng liên hệ với bộ Phận CSKH</p>
                 </motion.div>
               )}
               {insufficientBalance && (
@@ -395,7 +395,7 @@ export default function Order() {
                 {exceeded && (
                   <motion.div initial={{ opacity: 0, y: 10, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="mt-3 flex items-center gap-2 justify-center p-3 bg-red-50 border border-red-200 rounded-xl">
                     <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                    <p className="text-red-600 text-sm font-semibold">Hệ thống đang bận, vui lòng thử lại sau!</p>
+                    <p className="text-red-600 text-sm font-semibold">Vui lòng liên hệ với bộ Phận CSKH</p>
                   </motion.div>
                 )}
                 {insufficientBalance && (

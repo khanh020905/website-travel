@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Generate a unique email for Supabase (users never see this)
     const slug = displayName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
     const email = `${slug}_${Date.now()}@travel.local`
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -74,6 +74,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       },
     })
+    
+    // Ensure profile is created (fallback if db trigger fails/is missing)
+    if (!error && data?.user) {
+      const { error: profileError } = await supabase.from('profiles').insert([
+        {
+          id: data.user.id,
+          email: data.user.email,
+          display_name: displayName,
+          provider: 'email'
+        }
+      ])
+      if (profileError && profileError.code !== '23505') {
+        console.error('Profile manual insertion error:', profileError)
+      }
+    }
+    
     return { error: error?.message ?? null }
   }
 
