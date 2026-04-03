@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import gsap from 'gsap'
 import { Calendar, DollarSign, Users, Eye, MoreHorizontal, RefreshCw, BarChart3, Shield, Settings, Bell, ArrowUpRight, ArrowDownRight, Search, Filter, Minus, Plus, Check, X, Loader2, Landmark, OctagonX, Banknote, Clock, CheckCircle, Gift } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -58,11 +58,33 @@ interface Withdrawal {
   approved_at: string | null
 }
 
-function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdateBalance, onResetTour }: { profiles: Profile[]; loading: boolean; error: string | null; onRetry: () => void; compact?: boolean; onUpdateBalance?: (id: string, balance: number) => Promise<void>; onResetTour?: (id: string) => Promise<void> }) {
+function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdateBalance, onResetTour, onUpdateProfile }: { profiles: Profile[]; loading: boolean; error: string | null; onRetry: () => void; compact?: boolean; onUpdateBalance?: (id: string, balance: number) => Promise<void>; onResetTour?: (id: string) => Promise<void>; onUpdateProfile?: (id: string, updates: Partial<Profile>) => Promise<{success: boolean}> }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [resettingId, setResettingId] = useState<string | null>(null)
+  const [editingProfile, setEditingProfile] = useState<Profile | null>(null)
+  const [profileForm, setProfileForm] = useState<Partial<Profile>>({})
+  const [savingProfile, setSavingProfile] = useState(false)
+
+  const openProfileView = (p: Profile) => {
+    setEditingProfile(p)
+    setProfileForm({
+      display_name: p.display_name || '',
+      email: p.email || '',
+      bank_name: p.bank_name || '',
+      bank_account_number: p.bank_account_number || '',
+      role: p.role || 'user'
+    })
+  }
+
+  const saveProfile = async () => {
+    if (!onUpdateProfile || !editingProfile) return
+    setSavingProfile(true)
+    const { success } = await onUpdateProfile(editingProfile.id, profileForm)
+    setSavingProfile(false)
+    if (success) setEditingProfile(null)
+  }
 
   const startEdit = (p: Profile) => {
     setEditingId(p.id)
@@ -120,13 +142,13 @@ function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdat
           className={`flex items-center gap-3 ${compact ? 'py-1.5' : 'p-3 bg-surface-dim rounded-xl hover:bg-gray-100 transition-colors'}`}
         >
           {p.avatar_url ? (
-            <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary/20">
+            <button onClick={() => openProfileView(p)} className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary/20 hover:border-primary transition-colors cursor-pointer" title="Sửa thông tin">
               <img src={p.avatar_url} alt={p.display_name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-            </div>
+            </button>
           ) : (
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+            <button onClick={() => openProfileView(p)} className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white font-bold text-sm flex-shrink-0 hover:opacity-90 transition-opacity cursor-pointer" title="Sửa thông tin">
               {(p.display_name || p.email || '?').charAt(0).toUpperCase()}
-            </div>
+            </button>
           )}
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm truncate">{p.display_name || 'Hiện đang trống'}</p>
@@ -202,6 +224,51 @@ function UsersList({ profiles, loading, error, onRetry, compact = false, onUpdat
         </motion.div>
       ))}
 
+      {/* Edit Profile Modal */}
+      <AnimatePresence>
+        {editingProfile && (
+          <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-white rounded-2xl w-full max-w-md overflow-hidden flex flex-col shadow-2xl">
+              <div className="flex items-center justify-between p-4 border-b border-border/50 bg-gray-50">
+                <h3 className="font-bold text-lg">Sửa thông tin</h3>
+                <button onClick={() => setEditingProfile(null)} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 transition-colors cursor-pointer"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-text-muted mb-1.5 block">Tên hiển thị</label>
+                  <input type="text" value={profileForm.display_name || ''} onChange={e => setProfileForm({...profileForm, display_name: e.target.value})} className="w-full text-sm py-2 px-3 border border-border rounded-xl focus:border-primary focus:outline-none" placeholder="Nhập tên" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-text-muted mb-1.5 block">Email</label>
+                  <input type="email" value={profileForm.email || ''} onChange={e => setProfileForm({...profileForm, email: e.target.value})} className="w-full text-sm py-2 px-3 border border-border rounded-xl focus:border-primary focus:outline-none" placeholder="Nhập email" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-text-muted mb-1.5 block">Tên ngân hàng</label>
+                  <input type="text" value={profileForm.bank_name || ''} onChange={e => setProfileForm({...profileForm, bank_name: e.target.value})} className="w-full text-sm py-2 px-3 border border-border rounded-xl focus:border-primary focus:outline-none" placeholder="VD: Vietcombank" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-text-muted mb-1.5 block">Số tài khoản</label>
+                  <input type="text" value={profileForm.bank_account_number || ''} onChange={e => setProfileForm({...profileForm, bank_account_number: e.target.value})} className="w-full text-sm py-2 px-3 border border-border rounded-xl focus:border-primary focus:outline-none" placeholder="Nhập số tài khoản" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-text-muted mb-1.5 block">Vai trò</label>
+                  <select value={profileForm.role || 'user'} onChange={e => setProfileForm({...profileForm, role: e.target.value})} className="w-full text-sm py-2 px-3 border border-border rounded-xl focus:border-primary focus:outline-none bg-white">
+                    <option value="user">Người dùng (User)</option>
+                    <option value="admin">Quản trị viên (Admin)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="p-4 border-t border-border/50 bg-gray-50 flex justify-end gap-3">
+                <button onClick={() => setEditingProfile(null)} className="px-5 py-2.5 bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-300 transition-colors cursor-pointer">Hủy</button>
+                <button onClick={saveProfile} disabled={savingProfile} className="px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl flex items-center gap-2 hover:bg-primary-dark transition-colors disabled:opacity-50 cursor-pointer">
+                  {savingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Lưu thay đổi
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -292,6 +359,16 @@ export default function AdminDashboard() {
       return
     }
     setProfiles((prev) => prev.map((p) => p.id === id ? { ...p, order_count: 0 } : p))
+  }
+
+  const handleUpdateProfile = async (id: string, updates: Partial<Profile>) => {
+    const { error } = await supabase.from('profiles').update(updates).eq('id', id)
+    if (error) {
+      alert(`Lỗi cập nhật người dùng: ${error.message}`)
+      return { success: false }
+    }
+    setProfiles((prev) => prev.map((p) => p.id === id ? { ...p, ...updates } : p))
+    return { success: true }
   }
 
   // Build stats with real user count
@@ -608,7 +685,7 @@ export default function AdminDashboard() {
           {/* User list - Mobile */}
           <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2"><Users className="w-4 h-4 text-purple-500" /> Người dùng {!profilesLoading && <span className="text-text-muted font-normal">({profiles.length})</span>}</h3>
           <div className="bg-white rounded-2xl p-4 border border-border/50 shadow-sm mb-6">
-            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} onUpdateBalance={handleUpdateBalance} onResetTour={handleResetTour} compact />
+            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} onUpdateBalance={handleUpdateBalance} onResetTour={handleResetTour} onUpdateProfile={handleUpdateProfile} compact />
           </div>
 
           {/* Chat Management - Mobile */}
@@ -863,7 +940,7 @@ export default function AdminDashboard() {
             <button onClick={fetchProfiles} className="flex items-center gap-1.5 text-primary text-xs font-semibold cursor-pointer hover:underline"><RefreshCw className="w-3.5 h-3.5" /> Làm mới</button>
           </div>
           <div className="px-6 pb-6">
-            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} onUpdateBalance={handleUpdateBalance} onResetTour={handleResetTour} />
+            <UsersList profiles={profiles} loading={profilesLoading} error={profilesError} onRetry={fetchProfiles} onUpdateBalance={handleUpdateBalance} onResetTour={handleResetTour} onUpdateProfile={handleUpdateProfile} />
           </div>
         </motion.div>
 
