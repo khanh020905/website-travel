@@ -24,9 +24,6 @@ export default function Order() {
   const progressRef = useRef<HTMLDivElement>(null)
   const counterRef = useRef<HTMLSpanElement>(null)
 
-  // Hidden stop limit set by admin from app_settings
-  // UI still shows /60 but actual limit is controlled by admin
-  const hiddenLimitRef = useRef(30) // default 30, will be overridden by admin setting
 
   // Lock to prevent fast-clicking bypass
   const processingRef = useRef(false)
@@ -35,10 +32,11 @@ export default function Order() {
   const prizeMinRef = useRef(1)
   const prizeMaxRef = useRef(2)
 
+  const [maxBookings, setMaxBookings] = useState(60)
+  
   // Each click costs $0.60
   const costPerClick = COST_PER_CLICK
   const totalSpent = orderCount * costPerClick
-  const maxBookings = 60
   const progressPct = Math.min(100, (orderCount / maxBookings) * 100)
 
   // Fetch user balance and admin stop limit (re-fetch on every navigation to this page)
@@ -62,7 +60,7 @@ export default function Order() {
       .single()
       .then(({ data }: { data: { value: string } | null }) => {
         if (data?.value) {
-          hiddenLimitRef.current = parseInt(data.value) || 30
+          setMaxBookings(parseInt(data.value) || 60)
         }
       })
     // Fetch prize settings
@@ -117,8 +115,7 @@ export default function Order() {
   const handleClickOrder = async () => {
     // Prevent fast-clicking bypass
     if (processingRef.current) return
-    // Use admin-set hidden limit instead of the displayed max (60)
-    if (orderCount + 1 > hiddenLimitRef.current) {
+    if (orderCount + 1 > maxBookings) {
       await awardPrize()
       return
     }
@@ -136,7 +133,7 @@ export default function Order() {
     if (!user || processingRef.current) return
     processingRef.current = true
     // Re-check limit before processing to prevent bypass
-    if (orderCount + 1 > hiddenLimitRef.current) {
+    if (orderCount + 1 > maxBookings) {
       await awardPrize()
       setShowConfirm(false)
       processingRef.current = false

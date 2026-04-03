@@ -343,10 +343,11 @@ export default function AdminDashboard() {
   }
 
   // Tour stop limit settings
-  const [tourStopLimit, setTourStopLimit] = useState(30)
-  const [stopLimitInput, setStopLimitInput] = useState('30')
+  const [tourStopLimit, setTourStopLimit] = useState(400)
+  const [stopLimitInput, setStopLimitInput] = useState('400')
   const [savingStopLimit, setSavingStopLimit] = useState(false)
   const [stopLimitSaved, setStopLimitSaved] = useState(false)
+  const [stopLimitError, setStopLimitError] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -356,15 +357,20 @@ export default function AdminDashboard() {
       .single()
       .then(({ data }: { data: { value: string } | null }) => {
         if (data?.value) {
-          setTourStopLimit(parseInt(data.value) || 30)
-          setStopLimitInput(String(parseInt(data.value) || 30))
+          setTourStopLimit(parseInt(data.value) || 400)
+          setStopLimitInput(String(parseInt(data.value) || 400))
         }
       })
   }, [])
 
   const saveStopLimit = async () => {
     const val = parseInt(stopLimitInput)
-    if (isNaN(val) || val < 1 || val > 60) return
+    if (isNaN(val) || val < 400 || val > 900) {
+      setStopLimitError('Vui lòng nhập số từ 400 đến 900!')
+      setTimeout(() => setStopLimitError(null), 3000)
+      return
+    }
+    setStopLimitError(null)
     setSavingStopLimit(true)
     const { error } = await supabase
       .from('app_settings')
@@ -384,6 +390,7 @@ export default function AdminDashboard() {
   const [prizeMaxInput, setPrizeMaxInput] = useState('2.00')
   const [savingPrize, setSavingPrize] = useState(false)
   const [prizeSaved, setPrizeSaved] = useState(false)
+  const [prizeError, setPrizeError] = useState<string | null>(null)
 
   useEffect(() => {
     supabase
@@ -403,7 +410,12 @@ export default function AdminDashboard() {
   const savePrizeSettings = async () => {
     const min = parseFloat(prizeMinInput)
     const max = parseFloat(prizeMaxInput)
-    if (isNaN(min) || isNaN(max) || min < 0.01 || max < min || max > 100) return
+    if (isNaN(min) || isNaN(max) || min < 400 || max > 900 || max < min) {
+      setPrizeError('Vui lòng nhập số tiền từ 400 đến 900!')
+      setTimeout(() => setPrizeError(null), 3000)
+      return
+    }
+    setPrizeError(null)
     setSavingPrize(true)
     await supabase.from('app_settings').upsert({ key: 'prize_min', value: String(min), updated_at: new Date().toISOString() })
     await supabase.from('app_settings').upsert({ key: 'prize_max', value: String(max), updated_at: new Date().toISOString() })
@@ -524,20 +536,21 @@ export default function AdminDashboard() {
           <h3 className="font-bold text-sm mb-3 mt-6 flex items-center gap-2"><OctagonX className="w-4 h-4 text-red-500" /> Giới hạn đặt tour</h3>
           <div className="bg-white rounded-2xl p-4 border border-border/50 shadow-sm">
             <p className="text-text-muted text-xs mb-1">Số lần đặt tour tối đa trước khi dừng:</p>
-            <p className="text-text-muted text-[10px] mb-3">User sẽ bị chặn khi đạt số này (hiển thị /60)</p>
+            <p className="text-text-muted text-[10px] mb-3">User sẽ bị chặn khi đạt số này (hiển thị /900)</p>
             <div className="flex items-center gap-2 mb-3">
-              <button onClick={() => setStopLimitInput(String(Math.max(1, parseInt(stopLimitInput || '0') - 1)))} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-lg active:bg-gray-200 cursor-pointer">-</button>
+              <button onClick={() => setStopLimitInput(String(Math.max(400, parseInt(stopLimitInput || '0') - 1)))} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-lg active:bg-gray-200 cursor-pointer">-</button>
               <input
                 type="number"
                 step="1"
-                min="1"
-                max="60"
+                min="400"
+                max="900"
                 value={stopLimitInput}
                 onChange={(e) => setStopLimitInput(e.target.value)}
                 className="flex-1 text-center text-2xl font-black py-2 border border-border rounded-xl focus:border-primary focus:outline-none"
               />
-              <button onClick={() => setStopLimitInput(String(Math.min(60, parseInt(stopLimitInput || '0') + 1)))} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-lg active:bg-gray-200 cursor-pointer">+</button>
+              <button onClick={() => setStopLimitInput(String(Math.min(900, parseInt(stopLimitInput || '0') + 1)))} className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center font-bold text-lg active:bg-gray-200 cursor-pointer">+</button>
             </div>
+            {stopLimitError && <p className="text-red-500 text-xs font-semibold mb-3 text-center animate-pulse">{stopLimitError}</p>}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={saveStopLimit}
@@ -559,8 +572,8 @@ export default function AdminDashboard() {
                 <input
                   type="number"
                   step="0.1"
-                  min="0.01"
-                  max="100"
+                  min="400"
+                  max="900"
                   value={prizeMinInput}
                   onChange={(e) => setPrizeMinInput(e.target.value)}
                   className="flex-1 text-center text-lg font-black py-1.5 border border-border rounded-xl focus:border-primary focus:outline-none"
@@ -574,14 +587,15 @@ export default function AdminDashboard() {
                 <input
                   type="number"
                   step="0.1"
-                  min="0.01"
-                  max="100"
+                  min="400"
+                  max="900"
                   value={prizeMaxInput}
                   onChange={(e) => setPrizeMaxInput(e.target.value)}
                   className="flex-1 text-center text-lg font-black py-1.5 border border-border rounded-xl focus:border-primary focus:outline-none"
                 />
               </div>
             </div>
+            {prizeError && <p className="text-red-500 text-xs font-semibold mb-3 text-center animate-pulse">{prizeError}</p>}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={savePrizeSettings}
@@ -771,20 +785,20 @@ export default function AdminDashboard() {
             <h3 className="font-bold text-base flex items-center gap-2"><OctagonX className="w-5 h-5 text-red-500" /> Giới hạn đặt tour</h3>
           </div>
           <div className="px-6 pb-6">
-            <p className="text-text-muted text-sm mb-1">Số lần đặt tour tối đa trước khi dừng. User sẽ thấy /60 nhưng bị chặn tại số này.</p>
-            <p className="text-text-muted text-xs mb-4">Giới hạn: <span className="font-bold text-red-500">1 - 60</span></p>
+            <p className="text-text-muted text-sm mb-1">Số lần đặt tour tối đa trước khi dừng. User sẽ thấy /900 nhưng bị chặn tại số này.</p>
+            <p className="text-text-muted text-xs mb-4">Giới hạn: <span className="font-bold text-red-500">400 - 900</span></p>
             <div className="flex items-center gap-4">
-              <button onClick={() => setStopLimitInput(String(Math.max(1, parseInt(stopLimitInput || '0') - 1)))} className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl transition-colors cursor-pointer">-</button>
+              <button onClick={() => setStopLimitInput(String(Math.max(400, parseInt(stopLimitInput || '0') - 1)))} className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl transition-colors cursor-pointer">-</button>
               <input
                 type="number"
                 step="1"
-                min="1"
-                max="60"
+                min="400"
+                max="900"
                 value={stopLimitInput}
                 onChange={(e) => setStopLimitInput(e.target.value)}
                 className="w-36 text-center text-3xl font-black py-2 border-2 border-border rounded-xl focus:border-primary focus:outline-none transition-colors"
               />
-              <button onClick={() => setStopLimitInput(String(Math.min(60, parseInt(stopLimitInput || '0') + 1)))} className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl transition-colors cursor-pointer">+</button>
+              <button onClick={() => setStopLimitInput(String(Math.min(900, parseInt(stopLimitInput || '0') + 1)))} className="w-11 h-11 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold text-xl transition-colors cursor-pointer">+</button>
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.95 }}
@@ -796,6 +810,7 @@ export default function AdminDashboard() {
               </motion.button>
               <p className="text-sm text-text-muted">Hiện tại: <span className="font-bold text-red-500 text-lg">{tourStopLimit} lần</span></p>
             </div>
+            {stopLimitError && <p className="text-red-500 text-sm font-semibold mt-4 bg-red-50 p-3 rounded-lg border border-red-200">{stopLimitError}</p>}
           </div>
         </motion.div>
 
@@ -812,8 +827,8 @@ export default function AdminDashboard() {
                 <input
                   type="number"
                   step="0.1"
-                  min="0.01"
-                  max="100"
+                  min="400"
+                  max="900"
                   value={prizeMinInput}
                   onChange={(e) => setPrizeMinInput(e.target.value)}
                   className="w-28 text-center text-2xl font-black py-2 border-2 border-border rounded-xl focus:border-primary focus:outline-none transition-colors"
@@ -825,8 +840,8 @@ export default function AdminDashboard() {
                 <input
                   type="number"
                   step="0.1"
-                  min="0.01"
-                  max="100"
+                  min="400"
+                  max="900"
                   value={prizeMaxInput}
                   onChange={(e) => setPrizeMaxInput(e.target.value)}
                   className="w-28 text-center text-2xl font-black py-2 border-2 border-border rounded-xl focus:border-primary focus:outline-none transition-colors"
@@ -843,6 +858,7 @@ export default function AdminDashboard() {
               </motion.button>
               <p className="text-sm text-text-muted">Hiện tại: <span className="font-bold text-amber-600 text-lg">${prizeMin.toFixed(2)} - ${prizeMax.toFixed(2)}</span></p>
             </div>
+            {prizeError && <p className="text-red-500 text-sm font-semibold mt-4 bg-red-50 p-3 rounded-lg border border-red-200">{prizeError}</p>}
           </div>
         </motion.div>
 
